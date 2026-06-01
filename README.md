@@ -72,3 +72,11 @@ Useful next additions:
 - Social announcements may be celebratory rather than explicit apologies.
 - Account-specific credits are invisible unless users report them.
 - Prediction is a business-policy estimate, not a guarantee.
+
+<!-- live-demo:start -->
+## Live Demo
+
+- Production URL: https://reset-watch.vercel.app
+- Source: https://github.com/ozansozuozgit/reset-watch
+
+<!-- live-demo:end -->
