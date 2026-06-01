@@ -35,15 +35,36 @@ Suggested Vercel settings:
 
 ## Data model
 
-Seed data lives in `src/data.ts`. Scoring logic lives in `src/model.ts`.
+- Seed examples live in `src/data.ts`.
+- Scoring logic lives in `src/model.ts`.
+- Runtime status ingestion lives in `src/live.ts`.
+- Public status snapshots live at `public/data/status-snapshot.json`.
+- Curated reset announcements live at `public/data/resets.json`.
 
-Future ingestion ideas:
+## Auto-update flow
 
-1. Pull `https://status.claude.com/api/v2/incidents.json` and `https://status.openai.com/api/v2/incidents.json` on a schedule.
-2. Track public reset announcements from official/team social accounts.
-3. Match reset events to incidents with 24h, 72h, and 7d windows.
-4. Save source snapshots because posts/status text can change.
-5. Keep manual/community reports lower confidence until corroborated.
+The repo includes `.github/workflows/refresh-status.yml`, which runs hourly via GitHub Actions cron:
+
+1. Fetch `https://status.claude.com/api/v2/incidents.json` and `https://status.openai.com/api/v2/incidents.json`.
+2. Filter incidents for coding/usage keywords.
+3. Write `public/data/status-snapshot.json`.
+4. Run `npm run build`.
+5. Commit the snapshot if it changed.
+
+When the GitHub repo is connected to Vercel, that commit triggers a Vercel redeploy. The deployed app then reads `/data/status-snapshot.json` and `/data/resets.json` at runtime.
+
+Manual refresh:
+
+```bash
+npm run fetch:status
+```
+
+Useful next additions:
+
+1. Add more reset announcements to `public/data/resets.json`.
+2. Archive source screenshots/links for reset posts that may disappear.
+3. Add optional Discord/Telegram alerts when a new high-fit incident appears.
+4. Add a small public report form for “my quota drained unusually fast” / “my quota reset.”
 
 ## Known limitations
 

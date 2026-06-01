@@ -34,7 +34,7 @@ main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 56
 .eyebrow, .card-label { font: 600 11px/1.2 'Geist Mono', monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .eyebrow { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
 .eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: var(--green-text); }
-.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: end; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; align-items: end; }
 h1 { font-size: clamp(36px, 5vw, 64px); line-height: 1.02; letter-spacing: -.045em; margin: 0; max-width: 760px; font-weight: 650; }
 .lede { color: var(--muted); font-size: 18px; line-height: 1.55; max-width: 700px; margin: 18px 0 0; }
 .hero-actions { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
@@ -43,11 +43,11 @@ h1 { font-size: clamp(36px, 5vw, 64px); line-height: 1.02; letter-spacing: -.045
 .signal-card { border: 1px solid var(--border); background: var(--surface); border-radius: 14px; padding: 20px; }
 .signal-card strong { display: block; font: 650 52px/.95 'Geist', sans-serif; letter-spacing: -.05em; margin: 10px 0 8px; color: var(--text); }
 .signal-card > span { display: block; color: var(--muted); font-size: 14px; line-height: 1.45; }
-.signal-orbit { display: none; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
 .mini-stats div { background: var(--surface-soft); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
 .mini-stats b { display: block; font: 650 18px 'Geist', sans-serif; }
 .mini-stats small { display: block; margin-top: 2px; color: var(--muted); font: 500 10px/1.25 'Geist Mono', monospace; text-transform: uppercase; }
+.freshness { color: var(--muted); font: 500 12px 'Geist Mono', monospace; margin: 14px 0 0; }
 
 .section { padding: 42px 0; border-bottom: 1px solid var(--border); }
 .section-heading { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(260px, 420px); gap: 20px; align-items: end; margin-bottom: 18px; }
@@ -67,17 +67,20 @@ h2 { font-size: clamp(28px, 3vw, 42px); line-height: 1.08; letter-spacing: -.035
 .drivers b, .blockers b { font: 650 12px 'Geist Mono', monospace; text-transform: uppercase; color: var(--text); }
 ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); line-height: 1.45; font-size: 14px; }
 li + li { margin-top: 6px; }
+.live-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.live-meta span { border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); padding: 6px 10px; font: 500 12px 'Geist Mono', monospace; }
 .split { display: grid; grid-template-columns: 300px 1fr; gap: 28px; }
 .signal-list { margin: 0; padding: 0; list-style: none; counter-reset: signal; display: grid; gap: 8px; }
 .signal-list li { counter-increment: signal; border: 1px solid var(--border); border-radius: 12px; padding: 14px 14px 14px 50px; position: relative; background: var(--surface); color: var(--text); font-size: 14px; line-height: 1.45; }
 .signal-list li::before { content: counter(signal, decimal-leading-zero); position: absolute; left: 14px; top: 14px; font: 600 12px 'Geist Mono', monospace; color: var(--muted); }
 .timeline { display: grid; gap: 10px; }
+.timeline.compact .event { grid-template-columns: 138px 1fr; }
 .event { display: grid; grid-template-columns: 150px 1fr; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden; }
 .event-date { padding: 16px; color: var(--muted); font: 500 12px/1.35 'Geist Mono', monospace; border-right: 1px solid var(--border); background: var(--surface-soft); }
 .event-body { padding: 16px; }
 .event-title-row { display: flex; justify-content: space-between; gap: 14px; align-items: start; }
-.event h3, .failure h3, .companies h3 { margin: 0; font-size: 18px; line-height: 1.2; letter-spacing: -.015em; }
-.event p { color: var(--muted); margin: 8px 0; font-size: 14px; line-height: 1.45; }
+.event h3, .failure h3, .companies h3, .empty-state h3 { margin: 0; font-size: 18px; line-height: 1.2; letter-spacing: -.015em; }
+.event p, .empty-state p { color: var(--muted); margin: 8px 0; font-size: 14px; line-height: 1.45; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .tags span, .pill { border-radius: 999px; padding: 5px 8px; font: 500 10px 'Geist Mono', monospace; text-transform: uppercase; background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
 .pill.hot { background: var(--red-bg); color: var(--red-text); border-color: transparent; }
@@ -87,6 +90,8 @@ li + li { margin-top: 6px; }
 .notes { font-style: normal; }
 .source { display: inline-block; margin-top: 4px; color: var(--blue-text); font: 500 12px 'Geist Mono', monospace; text-decoration: none; }
 .source:hover { text-decoration: underline; }
+.empty-state { border: 1px dashed var(--border-strong); border-radius: 14px; background: var(--surface-soft); padding: 18px; }
+code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px; padding: 2px 5px; font-family: 'Geist Mono', monospace; font-size: .92em; }
 .failure-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .failure, .companies article { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--surface); }
 .failure p, .companies p { color: var(--muted); font-size: 14px; line-height: 1.45; }
@@ -98,7 +103,7 @@ li + li { margin-top: 6px; }
 @media (max-width: 880px) {
   main { width: min(100% - 24px, 1120px); padding-top: 18px; }
   .hero { padding-top: 30px; }
-  .hero-grid, .prediction-grid, .split, .section-heading, .event, .failure-grid, .companies { grid-template-columns: 1fr; }
+  .hero-grid, .prediction-grid, .split, .section-heading, .event, .timeline.compact .event, .failure-grid, .companies { grid-template-columns: 1fr; }
   .event-date { border-right: 0; border-bottom: 1px solid var(--border); }
   .event-title-row { flex-direction: column; }
   .section { padding: 32px 0; }

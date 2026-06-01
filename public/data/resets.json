@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-06-01T00:00:00.000Z",
+  "resets": [
+    {
+      "id": "claude-cache-bug-2026-02-reset",
+      "source": "anthropic",
+      "product": "Claude Code",
+      "announced_at": "2026-02-26T18:00:00Z",
+      "scope": "All Claude Code users",
+      "title": "Claude Code rate limits reset after prompt caching bug",
+      "url": "https://x.com/trq212/status/2027232172810416493",
+      "confidence": "employee",
+      "matched_incident_keywords": ["prompt caching", "usage limits", "consumed"]
+    },
+    {
+      "id": "claude-postmortem-2026-04-reset",
+      "source": "anthropic",
+      "product": "Claude Code",
+      "announced_at": "2026-04-23T18:00:00Z",
+      "scope": "Claude Code subscribers",
+      "title": "Subscriber limits reset after Claude Code fixes/postmortem",
+      "confidence": "community",
+      "matched_incident_keywords": ["subscriber limits", "bug fixes", "postmortem"]
+    },
+    {
+      "id": "codex-paid-reset-2026-05-31",
+      "source": "openai",
+      "product": "Codex",
+      "announced_at": "2026-05-31T15:00:00Z",
+      "scope": "All paid ChatGPT subscriptions; weekly and hourly Codex limits reset to 100%",
+      "title": "Codex usage limits reset for paid ChatGPT subscriptions",
+      "url": "https://x.com/thsottiaux/status/2061106703446450392",
+      "confidence": "employee",
+      "matched_incident_keywords": ["Codex", "usage limits", "weekly", "hourly"]
+    }
+  ]
+}

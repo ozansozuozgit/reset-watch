@@ -1,9 +1,8 @@
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { companies, events, failurePoints, watchlistSignals } from './data'
+import { companies, events as seedEvents, failurePoints, watchlistSignals } from './data'
+import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type StatusSnapshot } from './live'
 import { attribution, buildPredictions, eventResetProbability, lagHours, metrics } from './model'
-
-const stat = metrics(events)
-const predictions = buildPredictions(events)
 
 function fmtDate(value?: string) {
   if (!value) return '—'
@@ -18,31 +17,51 @@ function scoreTone(score: number) {
 }
 
 function App() {
+  const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null)
+  const [resetFeed, setResetFeed] = useState<ResetFeed | null>(null)
+
+  useEffect(() => {
+    Promise.all([
+      loadJson<StatusSnapshot>('/data/status-snapshot.json'),
+      loadJson<ResetFeed>('/data/resets.json'),
+    ]).then(([statusSnapshot, resets]) => {
+      setSnapshot(statusSnapshot)
+      setResetFeed(resets)
+    })
+  }, [])
+
+  const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
+  const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
+  const stat = useMemo(() => metrics(events), [events])
+  const predictions = useMemo(() => buildPredictions(events), [events])
+  const recentLiveEvents = liveEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 8)
+
   return (
     <main>
       <section className="hero">
         <div className="eyebrow"><span /> Reset Watch · Claude Code + Codex</div>
         <div className="hero-grid">
           <div>
-            <h1>Outage-to-apology reset radar for AI coding tools.</h1>
+            <h1>Usage reset radar for AI coding tools.</h1>
             <p className="lede">
-              Track the incidents that burn quota, match them to public make-good resets, and estimate whether Anthropic or OpenAI is likely to reset usage next.
+              Track coding-tool incidents, match them to public make-good resets, and estimate whether Anthropic or OpenAI is likely to reset usage next.
             </p>
             <div className="hero-actions">
               <a href="#predictions">Current forecast</a>
+              <a className="ghost" href="#live-incidents">Live incidents</a>
               <a className="ghost" href="#failure-points">Failure points</a>
             </div>
           </div>
           <div className="signal-card" aria-label="Make-good metrics">
-            <div className="signal-orbit" />
-            <p className="card-label">Observed sample</p>
-            <strong>{stat.usageMakeGoodRate}%</strong>
-            <span>of usage-related coding incidents in this seed dataset have a public reset.</span>
+            <p className="card-label">Live status</p>
+            <strong>{snapshot ? recentLiveEvents.length : '—'}</strong>
+            <span>matched coding/usage incidents from public status feeds.</span>
             <div className="mini-stats">
-              <div><b>{stat.codingIncidentCount}</b><small>coding incidents</small></div>
-              <div><b>{stat.resetCount}</b><small>resets</small></div>
+              <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
+              <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
               <div><b>{stat.medianLag ?? '—'}h</b><small>median lag</small></div>
             </div>
+            <p className="freshness">Last checked: {fmtDate(snapshot?.generated_at)}</p>
           </div>
         </div>
       </section>
@@ -51,7 +70,7 @@ function App() {
         <div className="section-heading">
           <p className="card-label">Forecast</p>
           <h2>Next reset likelihood</h2>
-          <p>Scores are deliberately conservative: quota/metering incidents matter much more than generic outages.</p>
+          <p>Computed from live status incidents plus curated reset announcements. Quota/metering incidents matter more than generic outages.</p>
         </div>
         <div className="prediction-grid">
           {predictions.map((prediction) => (
@@ -80,11 +99,52 @@ function App() {
         </div>
       </section>
 
+      <section id="live-incidents" className="section">
+        <div className="section-heading">
+          <p className="card-label">Live incidents</p>
+          <h2>Status feed matches</h2>
+          <p>Hourly GitHub Actions cron fetches Anthropic/OpenAI status APIs, commits changes, and Vercel redeploys from GitHub.</p>
+        </div>
+        <div className="live-meta">
+          <span>Status snapshot: {snapshot ? fmtDate(snapshot.generated_at) : 'loading or missing'}</span>
+          <span>Sources: {snapshot?.sources.map((source) => source.name).join(', ') || '—'}</span>
+          <span>Errors: {snapshot?.errors.length ?? 0}</span>
+        </div>
+        <div className="timeline compact">
+          {recentLiveEvents.length ? recentLiveEvents.map((event) => {
+            const probability = eventResetProbability(event)
+            return (
+              <article className="event" key={event.id}>
+                <div className="event-date">{fmtDate(event.timestamp)}</div>
+                <div className="event-body">
+                  <div className="event-title-row">
+                    <h3>{event.title}</h3>
+                    <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+                  </div>
+                  <p>{event.userImpact}</p>
+                  <div className="tags">
+                    <span>{event.companyLabel}</span>
+                    <span>{event.product}</span>
+                    <span>{event.kind}</span>
+                    <span>{event.resetIssued ? 'matched reset' : 'no matched reset'}</span>
+                  </div>
+                </div>
+              </article>
+            )
+          }) : (
+            <article className="empty-state">
+              <h3>No live matches loaded yet</h3>
+              <p>Run <code>npm run fetch:status</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
+            </article>
+          )}
+        </div>
+      </section>
+
       <section className="section split">
         <div>
           <p className="card-label">Method</p>
           <h2>What the model watches</h2>
-          <p className="muted">The tracker treats “usage reset” as a measurable event, not a vibe. The strongest trigger is a root-caused bug that depleted paid limits incorrectly.</p>
+          <p className="muted">The strongest trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak signals.</p>
         </div>
         <ol className="signal-list">
           {watchlistSignals.map((signal) => <li key={signal}>{signal}</li>)}
@@ -94,11 +154,11 @@ function App() {
       <section className="section">
         <div className="section-heading">
           <p className="card-label">Evidence ledger</p>
-          <h2>Seed events</h2>
-          <p>Start with hand-curated incidents; later this can ingest status APIs and social posts on a schedule.</p>
+          <h2>Known reset examples</h2>
+          <p>Curated examples stay in the repo; live incidents are merged in above for current forecasting.</p>
         </div>
         <div className="timeline">
-          {events.map((event) => {
+          {seedEvents.map((event) => {
             const probability = eventResetProbability(event)
             return (
               <article className="event" key={event.id}>
