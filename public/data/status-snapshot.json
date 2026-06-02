@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-02T22:59:22.024Z",
+  "generated_at": "2026-06-02T23:56:32.353Z",
   "sources": [
     {
       "name": "openai",
@@ -13,6 +13,17 @@
     }
   ],
   "incidents": [
+    {
+      "source": "openai",
+      "id": "01KT5B2V94YX1T1M88BVQHB58J",
+      "name": "codex-gpt-image-2-does-not-exist-errors",
+      "status": "monitoring",
+      "impact": "minor",
+      "created_at": "2026-06-02T23:35:44Z",
+      "components": [],
+      "keyword_match": true,
+      "relevant_updates": []
+    },
     {
       "source": "anthropic",
       "id": "zkr25thltwc9",
@@ -673,18 +684,6 @@
         "Claude Code",
         "Claude Cowork"
       ],
-      "keyword_match": true,
-      "relevant_updates": []
-    },
-    {
-      "source": "openai",
-      "id": "01KR421V8PCTFKA8EJJC2VCGA3",
-      "name": "Degraded Performance with Codex Cloud Tasks",
-      "status": "resolved",
-      "impact": "minor",
-      "created_at": "2026-05-08T15:07:16Z",
-      "resolved_at": "2026-05-08T16:17:19Z",
-      "components": [],
       "keyword_match": true,
       "relevant_updates": []
     },
