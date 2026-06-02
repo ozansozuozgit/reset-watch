@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-02T05:57:05.681Z",
+  "generated_at": "2026-06-02T07:59:45.621Z",
   "sources": [
     {
       "name": "openai",
@@ -13,6 +13,24 @@
     }
   ],
   "incidents": [
+    {
+      "source": "anthropic",
+      "id": "zkr25thltwc9",
+      "name": "Elevated errors across multiple models",
+      "status": "identified",
+      "impact": "major",
+      "created_at": "2026-06-02T06:04:59.243Z",
+      "started_at": "2026-06-02T06:04:59.234Z",
+      "resolved_at": null,
+      "components": [
+        "claude.ai",
+        "Claude Console (platform.claude.com)",
+        "Claude API (api.anthropic.com)",
+        "Claude Code"
+      ],
+      "keyword_match": true,
+      "relevant_updates": []
+    },
     {
       "source": "anthropic",
       "id": "vxp8fdrckj7q",
@@ -838,24 +856,6 @@
         "Claude Code",
         "Claude Cowork",
         "Claude for Government"
-      ],
-      "keyword_match": true,
-      "relevant_updates": []
-    },
-    {
-      "source": "anthropic",
-      "id": "lryjwwy0q9pl",
-      "name": "Elevated errors on Claude Opus 4.7",
-      "status": "resolved",
-      "impact": "minor",
-      "created_at": "2026-04-28T23:33:07.339Z",
-      "started_at": "2026-04-28T23:33:07.329Z",
-      "resolved_at": "2026-04-29T00:00:29.047Z",
-      "components": [
-        "claude.ai",
-        "Claude API (api.anthropic.com)",
-        "Claude Code",
-        "Claude Cowork"
       ],
       "keyword_match": true,
       "relevant_updates": []
