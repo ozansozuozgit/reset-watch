@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T05:59:45.783Z",
+  "generated_at": "2026-06-03T08:04:26.852Z",
   "sources": [
     {
       "name": "openai",
@@ -14,10 +14,28 @@
   ],
   "incidents": [
     {
+      "source": "anthropic",
+      "id": "thp2kyjx60qn",
+      "name": "Elevated errors on Opus 4.7",
+      "status": "resolved",
+      "impact": "minor",
+      "created_at": "2026-06-03T07:10:01.269Z",
+      "started_at": "2026-06-03T07:10:01.257Z",
+      "resolved_at": "2026-06-03T07:38:04.935Z",
+      "components": [
+        "claude.ai",
+        "Claude Console (platform.claude.com)",
+        "Claude API (api.anthropic.com)",
+        "Claude Code"
+      ],
+      "keyword_match": true,
+      "relevant_updates": []
+    },
+    {
       "source": "openai",
       "id": "01KT5XJ5ATD6RMYP908WS69FVD",
-      "name": "Elevated error rates on Codex and ChatGPT",
-      "status": "investigating",
+      "name": "Elevated error rates on Codex, ChatGPT and Responses API",
+      "status": "monitoring",
       "impact": "major",
       "created_at": "2026-06-03T04:58:40Z",
       "components": [],
@@ -28,11 +46,11 @@
       "source": "anthropic",
       "id": "0w1blp7cngrr",
       "name": "Issue affecting some Claude Code services",
-      "status": "investigating",
+      "status": "resolved",
       "impact": "major",
       "created_at": "2026-06-03T04:17:04.989Z",
       "started_at": "2026-06-03T04:17:04.977Z",
-      "resolved_at": null,
+      "resolved_at": "2026-06-03T07:36:48.555Z",
       "components": [
         "Claude Code"
       ],
@@ -856,26 +874,6 @@
         "claude.ai",
         "Claude API (api.anthropic.com)",
         "Claude Code"
-      ],
-      "keyword_match": true,
-      "relevant_updates": []
-    },
-    {
-      "source": "anthropic",
-      "id": "2gf1jpyty350",
-      "name": "claude.ai and API unavailable",
-      "status": "resolved",
-      "impact": "critical",
-      "created_at": "2026-04-30T01:20:26.256Z",
-      "started_at": "2026-04-30T01:20:26.246Z",
-      "resolved_at": "2026-04-30T01:51:16.534Z",
-      "components": [
-        "claude.ai",
-        "Claude Console (platform.claude.com)",
-        "Claude API (api.anthropic.com)",
-        "Claude Code",
-        "Claude Cowork",
-        "Claude for Government"
       ],
       "keyword_match": true,
       "relevant_updates": []
