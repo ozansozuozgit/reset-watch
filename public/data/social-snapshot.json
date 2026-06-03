@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-06-03T17:44:01.944Z",
+  "sources": [
+    {
+      "name": "hn",
+      "url": "https://hn.algolia.com/api"
+    },
+    {
+      "name": "x-search-snippet",
+      "url": "https://html.duckduckgo.com/html/?q=site:x.com"
+    },
+    {
+      "name": "reddit-search-snippet",
+      "url": "https://html.duckduckgo.com/html/?q=site:reddit.com"
+    },
+    {
+      "name": "bluesky-search-snippet",
+      "url": "https://html.duckduckgo.com/html/?q=site:bsky.app"
+    },
+    {
+      "name": "manual-overrides",
+      "url": "/data/social-overrides.json"
+    }
+  ],
+  "topics": [
+    {
+      "id": "openai-codex",
+      "company": "openai",
+      "product": "Codex",
+      "heat": 80,
+      "sentiment": 0,
+      "volume": 0,
+      "pain_chatter": 80,
+      "reset_chatter": 5,
+      "top_terms": [],
+      "sources": {},
+      "examples": [],
+      "notes": [
+        "Free-only community signal: HN Algolia plus DuckDuckGo snippets for X, Reddit, and Bluesky when available.",
+        "Counts are noisy and rate-limit tolerant; use heat as a directional vibe check, not analytics-grade sentiment.",
+        "Manual override: Codex degradation chatter observed manually; keep this file free/manual so the service does not depend on paid social APIs. Remove or lower when chatter cools."
+      ]
+    },
+    {
+      "id": "anthropic-claude-code",
+      "company": "anthropic",
+      "product": "Claude Code",
+      "heat": 0,
+      "sentiment": 0,
+      "volume": 0,
+      "pain_chatter": 0,
+      "reset_chatter": 0,
+      "top_terms": [],
+      "sources": {},
+      "examples": [],
+      "notes": [
+        "Free-only community signal: HN Algolia plus DuckDuckGo snippets for X, Reddit, and Bluesky when available.",
+        "Counts are noisy and rate-limit tolerant; use heat as a directional vibe check, not analytics-grade sentiment."
+      ]
+    }
+  ],
+  "errors": []
+}

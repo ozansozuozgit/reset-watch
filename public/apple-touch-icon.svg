@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Reset Watch">
+  <rect width="180" height="180" rx="42" fill="#191a17"/>
+  <circle cx="90" cy="90" r="51" fill="none" stroke="#f4efe4" stroke-width="15" stroke-linecap="round" stroke-dasharray="222 64" transform="rotate(-38 90 90)"/>
+  <path d="M126 45v35H91" fill="none" stroke="#f4efe4" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="90" cy="90" r="13" fill="#8bd17c"/>
+</svg>

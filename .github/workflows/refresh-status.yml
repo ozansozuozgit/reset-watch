@@ -1,4 +1,4 @@
-name: Refresh status snapshot
+name: Refresh public signal snapshots
 
 on:
   workflow_dispatch:
@@ -18,15 +18,15 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run fetch:status
+      - run: npm run fetch:data
       - run: npm run build
-      - name: Commit updated snapshot
+      - name: Commit updated snapshots
         run: |
-          if [[ -n "$(git status --short public/data/status-snapshot.json)" ]]; then
+          if [[ -n "$(git status --short public/data/status-snapshot.json public/data/social-snapshot.json)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add public/data/status-snapshot.json
-            git commit -m "Refresh status snapshot"
+            git add public/data/status-snapshot.json public/data/social-snapshot.json public/data/social-overrides.json
+            git commit -m "Refresh public signal snapshots"
             git push
           else
             echo "No snapshot changes"

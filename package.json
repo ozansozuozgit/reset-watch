@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "fetch:status": "node scripts/fetch-status.mjs"
+    "fetch:status": "node scripts/fetch-status.mjs",
+    "fetch:social": "node scripts/fetch-social.mjs",
+    "fetch:data": "npm run fetch:status && npm run fetch:social"
   },
   "dependencies": {
     "react": "^19.2.6",

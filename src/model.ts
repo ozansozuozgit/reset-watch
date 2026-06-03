@@ -1,20 +1,30 @@
 import type { CompanyId, Event } from './data'
+import { socialTopicForCompany, type SocialSnapshot, type SocialTopic } from './live'
 
 export type Prediction = {
   company: CompanyId
   companyLabel: string
   score: number
+  resetScore: number
+  painScore: number
   label: 'low' | 'watch' | 'likely' | 'hot'
+  painLabel: 'quiet' | 'noticeable' | 'degraded' | 'burning'
   nextWindow: string
   drivers: string[]
   blockers: string[]
+  painDrivers: string[]
+  socialTopic?: SocialTopic
   matchedEvents: Event[]
 }
+
+const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value))
 
 const daysBetween = (a: string, b: string) => {
   const ms = new Date(b).getTime() - new Date(a).getTime()
   return ms / 86_400_000
 }
+
+const isActive = (event: Event) => !event.resolvedAt && daysBetween(event.timestamp, new Date().toISOString()) <= 14
 
 export function lagHours(event: Event) {
   if (!event.resetAt) return null
@@ -36,11 +46,30 @@ export function eventResetProbability(event: Event) {
   return Math.max(3, Math.min(96, score))
 }
 
+export function eventPainScore(event: Event) {
+  let score = 8 + event.severity * 12
+  if (event.kind === 'outage') score += 18
+  if (event.kind === 'latency') score += 16
+  if (event.kind === 'capacity') score += 14
+  if (event.kind === 'metering-bug') score += 22
+  if (event.usageRelated) score += 18
+  if (isActive(event)) score += 22
+  if (event.product.toLowerCase().includes('code') || event.product.toLowerCase().includes('codex')) score += 8
+  return clamp(score, 0, 100)
+}
+
 export function classify(score: number): Prediction['label'] {
   if (score >= 78) return 'hot'
   if (score >= 58) return 'likely'
   if (score >= 35) return 'watch'
   return 'low'
+}
+
+export function classifyPain(score: number): Prediction['painLabel'] {
+  if (score >= 78) return 'burning'
+  if (score >= 58) return 'degraded'
+  if (score >= 35) return 'noticeable'
+  return 'quiet'
 }
 
 export function predictionWindow(score: number) {
@@ -50,13 +79,33 @@ export function predictionWindow(score: number) {
   return 'No reset expected from public signals'
 }
 
-export function buildPredictions(events: Event[]): Prediction[] {
+function companyBaseScore(recent: Event[]) {
+  if (!recent.length) return 0
+  const scores = recent.map(eventResetProbability)
+  const max = Math.max(...scores)
+  const weighted = scores.map((score, index) => score * (1 - index * 0.13))
+  const average = weighted.reduce((sum, value) => sum + value, 0) / Math.max(1, weighted.length)
+  return Math.round(max * 0.65 + average * 0.25)
+}
+
+function companyPainScore(recent: Event[], socialTopic?: SocialTopic) {
+  const eventScores = recent.map(eventPainScore)
+  const officialPain = eventScores.length ? Math.max(...eventScores) : 0
+  const avgPain = eventScores.length ? eventScores.reduce((sum, score) => sum + score, 0) / eventScores.length : 0
+  const socialHeat = socialTopic?.heat ?? 0
+  const socialPain = socialTopic?.pain_chatter ?? 0
+  return Math.round(clamp(officialPain * 0.38 + avgPain * 0.17 + socialHeat * 0.25 + socialPain * 0.20))
+}
+
+export function buildPredictions(events: Event[], social?: SocialSnapshot | null): Prediction[] {
   const companies: CompanyId[] = ['anthropic', 'openai']
   return companies.map((company) => {
     const companyEvents = events.filter((event) => event.company === company)
     const recent = companyEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 4)
-    const weighted = recent.map((event, index) => eventResetProbability(event) * (1 - index * 0.13))
-    const score = Math.round(weighted.reduce((sum, value) => sum + value, 0) / Math.max(1, weighted.length))
+    const socialTopic = socialTopicForCompany(social, company)
+    const resetScore = Math.round(clamp(companyBaseScore(recent) + (socialTopic?.reset_chatter ?? 0) * 0.1))
+    const painScore = companyPainScore(recent, socialTopic)
+    const label = classify(resetScore)
     const drivers = recent.flatMap((event) => {
       const d: string[] = []
       if (event.usageRelated) d.push(`${event.title}: usage/limit language present`)
@@ -64,21 +113,43 @@ export function buildPredictions(events: Event[]): Prediction[] {
       if (event.kind === 'metering-bug') d.push(`${event.title}: direct metering bug`)
       if (event.resetIssued) d.push(`${event.title}: historical reset precedent`)
       return d
-    }).slice(0, 5)
+    })
+    if ((socialTopic?.reset_chatter ?? 0) >= 35) {
+      drivers.push(`${socialTopic?.product}: community reset/limit chatter is elevated`)
+    }
+
+    const painDrivers = recent.flatMap((event) => {
+      const d: string[] = []
+      if (isActive(event)) d.push(`${event.title}: active official incident`)
+      if (event.severity >= 4) d.push(`${event.title}: major/critical impact`)
+      if (event.kind === 'latency' || event.kind === 'outage') d.push(`${event.title}: availability or latency pain`)
+      if (event.usageRelated) d.push(`${event.title}: limits/usage affected`)
+      return d
+    })
+    if ((socialTopic?.heat ?? 0) >= 45) {
+      painDrivers.push(`${socialTopic?.product}: community heat ${socialTopic?.heat}/100 across free sources`)
+    }
+
     const blockers = [
       recent.some((event) => !event.usageRelated) ? 'Some recent incidents are generic availability/latency, which rarely force resets.' : '',
       recent.some((event) => event.evidence === 'community') ? 'Some evidence is repost/community-level rather than original official source.' : '',
+      (socialTopic?.heat ?? 0) > 50 && (socialTopic?.reset_chatter ?? 0) < 35 ? 'Community pain is high, but reset-specific language is still weak.' : '',
       'A reset remains a policy/support decision; public telemetry cannot guarantee it.',
     ].filter(Boolean)
 
     return {
       company,
       companyLabel: company === 'anthropic' ? 'Anthropic' : 'OpenAI',
-      score,
-      label: classify(score),
-      nextWindow: predictionWindow(score),
-      drivers: drivers.length ? drivers : ['No strong current drivers.'],
+      score: resetScore,
+      resetScore,
+      painScore,
+      label,
+      painLabel: classifyPain(painScore),
+      nextWindow: predictionWindow(resetScore),
+      drivers: drivers.length ? drivers.slice(0, 5) : ['No strong current reset drivers.'],
       blockers,
+      painDrivers: painDrivers.length ? painDrivers.slice(0, 5) : ['No strong current pain drivers.'],
+      socialTopic,
       matchedEvents: recent,
     }
   })

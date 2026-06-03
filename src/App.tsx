@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { companies, events as seedEvents, failurePoints, watchlistSignals } from './data'
-import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type StatusSnapshot } from './live'
-import { attribution, buildPredictions, eventResetProbability, lagHours, metrics } from './model'
+import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
+import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction } from './model'
 
 function fmtDate(value?: string) {
   if (!value) return '—'
@@ -16,205 +16,357 @@ function scoreTone(score: number) {
   return 'low'
 }
 
+function confidenceCopy(label: Prediction['label']) {
+  if (label === 'hot') return 'make-good pressure is visible'
+  if (label === 'likely') return 'watch reset channels closely'
+  if (label === 'watch') return 'needs stronger usage evidence'
+  return 'background monitoring only'
+}
+
+function painCopy(label: Prediction['painLabel']) {
+  if (label === 'burning') return 'users are loudly feeling it'
+  if (label === 'degraded') return 'degradation chatter is elevated'
+  if (label === 'noticeable') return 'some pain is visible'
+  return 'community signal is quiet'
+}
+
+function sourceSummary(sources?: Record<string, number>) {
+  if (!sources) return '—'
+  return Object.entries(sources).map(([name, count]) => `${name} ${count}`).join(' · ') || '—'
+}
+
+const reportUrl = 'https://github.com/ozansozuozgit/reset-watch/issues/new?title=Codex%20feels%20degraded&body=What%20changed%3F%0A-%20%5B%20%5D%20Slow%0A-%20%5B%20%5D%20Errors%0A-%20%5B%20%5D%20Rate%20limit%20drained%20too%20fast%0A-%20%5B%20%5D%20Reset%20did%20not%20happen%0A-%20%5B%20%5D%20Model%20quality%20feels%20worse%0A%0APlan%2Fsurface%3A%0ATime%20and%20timezone%3A%0AAnything%20public%20to%20link%3A'
+
 function App() {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null)
   const [resetFeed, setResetFeed] = useState<ResetFeed | null>(null)
+  const [socialSnapshot, setSocialSnapshot] = useState<SocialSnapshot | null>(null)
 
   useEffect(() => {
     Promise.all([
       loadJson<StatusSnapshot>('/data/status-snapshot.json'),
       loadJson<ResetFeed>('/data/resets.json'),
-    ]).then(([statusSnapshot, resets]) => {
+      loadJson<SocialSnapshot>('/data/social-snapshot.json'),
+    ]).then(([statusSnapshot, resets, social]) => {
       setSnapshot(statusSnapshot)
       setResetFeed(resets)
+      setSocialSnapshot(social)
     })
   }, [])
 
   const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
   const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
   const stat = useMemo(() => metrics(events), [events])
-  const predictions = useMemo(() => buildPredictions(events), [events])
+  const predictions = useMemo(() => buildPredictions(events, socialSnapshot), [events, socialSnapshot])
   const recentLiveEvents = liveEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 8)
+  const topResetPrediction = predictions.slice().sort((a, b) => b.resetScore - a.resetScore)[0]
+  const topPainPrediction = predictions.slice().sort((a, b) => b.painScore - a.painScore)[0]
+  const latestIncident = recentLiveEvents[0]
+  const highFitCount = recentLiveEvents.filter((event) => eventResetProbability(event) >= 58).length
+  const socialHotCount = socialSnapshot?.topics.filter((topic) => topic.heat >= 58).length ?? 0
 
   return (
-    <main>
-      <section className="hero">
-        <div className="eyebrow"><span /> Reset Watch · Claude Code + Codex</div>
-        <div className="hero-grid">
-          <div>
-            <h1>Usage reset radar for AI coding tools.</h1>
-            <p className="lede">
-              Track coding-tool incidents, match them to public make-good resets, and estimate whether Anthropic or OpenAI is likely to reset usage next.
-            </p>
-            <div className="hero-actions">
-              <a href="#predictions">Current forecast</a>
-              <a className="ghost" href="#live-incidents">Live incidents</a>
-              <a className="ghost" href="#failure-points">Failure points</a>
-            </div>
-          </div>
-          <div className="signal-card" aria-label="Make-good metrics">
-            <p className="card-label">Live status</p>
-            <strong>{snapshot ? recentLiveEvents.length : '—'}</strong>
-            <span>matched coding/usage incidents from public status feeds.</span>
-            <div className="mini-stats">
-              <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
-              <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
-              <div><b>{stat.medianLag ?? '—'}h</b><small>median lag</small></div>
-            </div>
-            <p className="freshness">Last checked: {fmtDate(snapshot?.generated_at)}</p>
-          </div>
-        </div>
-      </section>
+    <>
+      <a className="skip-link" href="#predictions">Skip to forecast</a>
+      <header className="site-header" aria-label="Reset Watch navigation">
+        <a className="brand" href="#top" aria-label="Reset Watch home">
+          <span className="brand-mark" aria-hidden="true">↻</span>
+          <span>Reset Watch</span>
+        </a>
+        <nav>
+          <a href="#predictions">Forecast</a>
+          <a href="#community-heat">Community</a>
+          <a href="#live-incidents">Incidents</a>
+          <a href="#method">Method</a>
+          <a href="#evidence">Evidence</a>
+        </nav>
+      </header>
 
-      <section id="predictions" className="section">
-        <div className="section-heading">
-          <p className="card-label">Forecast</p>
-          <h2>Next reset likelihood</h2>
-          <p>Computed from live status incidents plus curated reset announcements. Quota/metering incidents matter more than generic outages.</p>
-        </div>
-        <div className="prediction-grid">
-          {predictions.map((prediction) => (
-            <article className={`prediction ${prediction.label}`} key={prediction.company}>
-              <div className="prediction-top">
+      <main id="top">
+        <section className="hero">
+          <div className="eyebrow"><span /> Claude Code + Codex make-good and pain monitor</div>
+          <div className="hero-grid">
+            <div>
+              <h1>Is it reset-worthy, or just painful?</h1>
+              <p className="lede">
+                Reset Watch now separates “will they reset usage?” from “are users suffering?” using official status feeds plus free community signals from HN and search snippets for X, Reddit, Bluesky, plus manual overrides.
+              </p>
+              <div className="hero-actions">
+                <a href="#predictions">Current forecast</a>
+                <a className="ghost" href="#community-heat">Community heat</a>
+                <a className="ghost" href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
+              </div>
+            </div>
+            <aside className="signal-card dual" aria-label="Current make-good and pain summary">
+              <p className="card-label">Current read</p>
+              <div className="readout-grid">
                 <div>
-                  <p className="card-label">{prediction.companyLabel}</p>
-                  <h3>{prediction.label.toUpperCase()}</h3>
+                  <span>Reset odds</span>
+                  <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
+                  <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
                 </div>
-                <div className="score-ring" style={{ '--score': `${prediction.score}%` } as React.CSSProperties}>
-                  <b>{prediction.score}</b>
-                  <span>/100</span>
+                <div>
+                  <span>Pain index</span>
+                  <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
+                  <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
                 </div>
               </div>
-              <p className="window">{prediction.nextWindow}</p>
-              <div className="drivers">
-                <b>Drivers</b>
-                <ul>{prediction.drivers.map((driver) => <li key={driver}>{driver}</li>)}</ul>
+              <div className="mini-stats">
+                <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
+                <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
+                <div><b>{socialHotCount}</b><small>hot topics</small></div>
               </div>
-              <div className="blockers">
-                <b>Why this can be wrong</b>
-                <ul>{prediction.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+              <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Social: {fmtDate(socialSnapshot?.generated_at)}</p>
+            </aside>
+          </div>
 
-      <section id="live-incidents" className="section">
-        <div className="section-heading">
-          <p className="card-label">Live incidents</p>
-          <h2>Status feed matches</h2>
-          <p>Hourly GitHub Actions cron fetches Anthropic/OpenAI status APIs, commits changes, and Vercel redeploys from GitHub.</p>
-        </div>
-        <div className="live-meta">
-          <span>Status snapshot: {snapshot ? fmtDate(snapshot.generated_at) : 'loading or missing'}</span>
-          <span>Sources: {snapshot?.sources.map((source) => source.name).join(', ') || '—'}</span>
-          <span>Errors: {snapshot?.errors.length ?? 0}</span>
-        </div>
-        <div className="timeline compact">
-          {recentLiveEvents.length ? recentLiveEvents.map((event) => {
-            const probability = eventResetProbability(event)
-            return (
-              <article className="event" key={event.id}>
-                <div className="event-date">{fmtDate(event.timestamp)}</div>
-                <div className="event-body">
-                  <div className="event-title-row">
-                    <h3>{event.title}</h3>
-                    <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+          <div className="briefing-strip" aria-label="Reset Watch briefing">
+            <article>
+              <span>Latest match</span>
+              <b>{latestIncident ? latestIncident.companyLabel : 'No live match yet'}</b>
+              <p>{latestIncident ? latestIncident.title : 'The forecast is using curated historical evidence until the live feed updates.'}</p>
+            </article>
+            <article>
+              <span>High-fit signals</span>
+              <b>{snapshot ? highFitCount : '—'}</b>
+              <p>Live incidents with strong usage, quota, metering, or root-cause language.</p>
+            </article>
+            <article>
+              <span>Free source health</span>
+              <b>{(snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
+              <p>Status APIs plus HN, DuckDuckGo snippets for X/Reddit/Bluesky, and manual override JSON.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="predictions" className="section">
+          <div className="section-heading">
+            <p className="card-label">Forecast</p>
+            <h2>Reset odds vs pain index</h2>
+            <p>Generic outages can make the pain index spike while reset odds stay low. Quota, metering, over-drain, and root-cause language still matter most for make-good resets.</p>
+          </div>
+          <div className="prediction-grid">
+            {predictions.map((prediction) => (
+              <article className={`prediction ${prediction.label}`} key={prediction.company}>
+                <div className="prediction-top">
+                  <div>
+                    <p className="card-label">{prediction.companyLabel}</p>
+                    <h3>{prediction.label}</h3>
+                    <span>{confidenceCopy(prediction.label)}</span>
                   </div>
-                  <p>{event.userImpact}</p>
-                  <div className="tags">
-                    <span>{event.companyLabel}</span>
-                    <span>{event.product}</span>
-                    <span>{event.kind}</span>
-                    <span>{event.resetIssued ? 'matched reset' : 'no matched reset'}</span>
+                  <div className="score-pair">
+                    <div className="score-ring" style={{ '--score': `${prediction.resetScore}%` } as React.CSSProperties}>
+                      <b>{prediction.resetScore}</b>
+                      <span>reset</span>
+                    </div>
+                    <div className="score-ring pain" style={{ '--score': `${prediction.painScore}%` } as React.CSSProperties}>
+                      <b>{prediction.painScore}</b>
+                      <span>pain</span>
+                    </div>
                   </div>
+                </div>
+                <p className="window">{prediction.nextWindow}</p>
+                <div className="score-explainer">
+                  <span className={`pill ${scoreTone(prediction.resetScore)}`}>reset odds {prediction.resetScore}/100</span>
+                  <span className={`pill ${scoreTone(prediction.painScore)}`}>pain index {prediction.painScore}/100</span>
+                  <span className="pill low">{prediction.painLabel}</span>
+                </div>
+                <div className="drivers">
+                  <b>Reset drivers</b>
+                  <ul>{prediction.drivers.map((driver) => <li key={driver}>{driver}</li>)}</ul>
+                </div>
+                <div className="drivers pain-drivers">
+                  <b>Pain drivers</b>
+                  <ul>{prediction.painDrivers.map((driver) => <li key={driver}>{driver}</li>)}</ul>
+                </div>
+                <div className="blockers">
+                  <b>Why this can be wrong</b>
+                  <ul>{prediction.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
                 </div>
               </article>
-            )
-          }) : (
-            <article className="empty-state">
-              <h3>No live matches loaded yet</h3>
-              <p>Run <code>npm run fetch:status</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
-            </article>
-          )}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
 
-      <section className="section split">
-        <div>
-          <p className="card-label">Method</p>
-          <h2>What the model watches</h2>
-          <p className="muted">The strongest trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak signals.</p>
-        </div>
-        <ol className="signal-list">
-          {watchlistSignals.map((signal) => <li key={signal}>{signal}</li>)}
-        </ol>
-      </section>
-
-      <section className="section">
-        <div className="section-heading">
-          <p className="card-label">Evidence ledger</p>
-          <h2>Known reset examples</h2>
-          <p>Curated examples stay in the repo; live incidents are merged in above for current forecasting.</p>
-        </div>
-        <div className="timeline">
-          {seedEvents.map((event) => {
-            const probability = eventResetProbability(event)
-            return (
-              <article className="event" key={event.id}>
-                <div className="event-date">{fmtDate(event.timestamp)}</div>
-                <div className="event-body">
-                  <div className="event-title-row">
-                    <h3>{event.title}</h3>
-                    <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+        <section id="community-heat" className="section">
+          <div className="section-heading">
+            <p className="card-label">Community heat</p>
+            <h2>Free chatter layer</h2>
+            <p>No paid social APIs. The cron samples HN plus search snippets for X/Reddit/Bluesky and tolerates failures; a small manual override file covers obvious waves that search misses.</p>
+          </div>
+          <div className="social-grid">
+            {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => (
+              <article className="social-card" key={topic.id}>
+                <div className="social-top">
+                  <div>
+                    <p className="card-label">{topic.product}</p>
+                    <h3>{topic.heat}/100 heat</h3>
+                    <span>{topic.volume} matched items · sentiment {topic.sentiment}</span>
                   </div>
-                  <p>{event.userImpact}</p>
-                  <div className="tags">
-                    <span>{event.companyLabel}</span>
-                    <span>{event.product}</span>
-                    <span>{event.kind}</span>
-                    <span>{event.evidence} evidence</span>
-                    <span>{attribution(event)} attribution</span>
-                    {event.resetIssued && <span>reset lag: {lagHours(event) ?? 'unknown'}h</span>}
-                  </div>
-                  <p className="notes">{event.notes}</p>
-                  {event.sourceUrl && <a className="source" href={event.sourceUrl} target="_blank">Source: {event.sourceLabel}</a>}
+                  <span className={`pill ${scoreTone(topic.heat)}`}>{topic.pain_chatter}/100 pain</span>
                 </div>
+                <div className="tags">
+                  {topic.top_terms.slice(0, 8).map((term) => <span key={term}>{term}</span>)}
+                </div>
+                <p className="source-line">Sources: {sourceSummary(topic.sources)}</p>
+                <div className="examples">
+                  {topic.examples.slice(0, 4).map((example) => (
+                    <a href={example.url} target="_blank" rel="noreferrer" key={`${example.source}-${example.title}`}>
+                      <small>{example.source}</small>
+                      <span>{example.title}</span>
+                    </a>
+                  ))}
+                </div>
+                {topic.notes.map((note) => <p className="notes" key={note}>{note}</p>)}
               </article>
-            )
-          })}
-        </div>
-      </section>
+            )) : (
+              <article className="empty-state">
+                <h3>No community snapshot loaded yet</h3>
+                <p>Run <code>npm run fetch:social</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
+              </article>
+            )}
+          </div>
+          <div className="report-box">
+            <div>
+              <p className="card-label">User reports</p>
+              <h3>Cheap, high-signal feedback</h3>
+              <p>If search misses a wave, reports can mark slow, errors, drained limits, missing reset, or quality regression without adding paid infrastructure.</p>
+            </div>
+            <a href={reportUrl} target="_blank" rel="noreferrer">Report Codex degradation</a>
+          </div>
+        </section>
 
-      <section id="failure-points" className="section">
-        <div className="section-heading">
-          <p className="card-label">Failure analysis</p>
-          <h2>Ways the forecast breaks</h2>
-          <p>This is the part that keeps the site honest on GitHub/Vercel.</p>
-        </div>
-        <div className="failure-grid">
-          {failurePoints.map((point) => (
-            <article className="failure" key={point.title}>
-              <h3>{point.title}</h3>
-              <p>{point.detail}</p>
-              <small>{point.mitigation}</small>
+        <section id="live-incidents" className="section">
+          <div className="section-heading">
+            <p className="card-label">Live incidents</p>
+            <h2>Status feed matches</h2>
+            <p>Hourly GitHub Actions cron fetches Anthropic/OpenAI status APIs and free social sources, commits changes, and Vercel redeploys from GitHub.</p>
+          </div>
+          <div className="live-meta">
+            <span>Status snapshot: {snapshot ? fmtDate(snapshot.generated_at) : 'loading or missing'}</span>
+            <span>Social snapshot: {socialSnapshot ? fmtDate(socialSnapshot.generated_at) : 'loading or missing'}</span>
+            <span>Status errors: {snapshot?.errors.length ?? 0}</span>
+            <span>Social errors: {socialSnapshot?.errors.length ?? 0}</span>
+          </div>
+          <div className="timeline compact">
+            {recentLiveEvents.length ? recentLiveEvents.map((event) => {
+              const probability = eventResetProbability(event)
+              const pain = eventPainScore(event)
+              return (
+                <article className="event" key={event.id}>
+                  <div className="event-date">{fmtDate(event.timestamp)}</div>
+                  <div className="event-body">
+                    <div className="event-title-row">
+                      <h3>{event.title}</h3>
+                      <div className="event-pills">
+                        <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+                        <span className={`pill ${scoreTone(pain)}`}>{pain}% pain</span>
+                      </div>
+                    </div>
+                    <p>{event.userImpact}</p>
+                    <div className="tags">
+                      <span>{event.companyLabel}</span>
+                      <span>{event.product}</span>
+                      <span>{event.kind}</span>
+                      <span>{event.resetIssued ? 'matched reset' : 'no matched reset'}</span>
+                    </div>
+                  </div>
+                </article>
+              )
+            }) : (
+              <article className="empty-state">
+                <h3>No live matches loaded yet</h3>
+                <p>Run <code>npm run fetch:status</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
+              </article>
+            )}
+          </div>
+        </section>
+
+        <section id="method" className="section split">
+          <div>
+            <p className="card-label">Method</p>
+            <h2>What the model watches</h2>
+            <p className="muted">The strongest reset trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak reset signals but strong pain signals.</p>
+          </div>
+          <ol className="signal-list">
+            {watchlistSignals.map((signal) => <li key={signal}>{signal}</li>)}
+            <li>Free community layer scans HN and DuckDuckGo snippets for X/Reddit/Bluesky, plus manual overrides for degraded, slow, unusable, limit-drain, and reset language.</li>
+            <li>Reset odds and pain index are intentionally separate so “Codex feels cooked” does not automatically imply “reset incoming.”</li>
+          </ol>
+        </section>
+
+        <section id="evidence" className="section">
+          <div className="section-heading">
+            <p className="card-label">Evidence ledger</p>
+            <h2>Known reset examples</h2>
+            <p>Curated examples stay in the repo; live incidents and community heat are merged above for current forecasting.</p>
+          </div>
+          <div className="timeline">
+            {seedEvents.map((event) => {
+              const probability = eventResetProbability(event)
+              return (
+                <article className="event" key={event.id}>
+                  <div className="event-date">{fmtDate(event.timestamp)}</div>
+                  <div className="event-body">
+                    <div className="event-title-row">
+                      <h3>{event.title}</h3>
+                      <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+                    </div>
+                    <p>{event.userImpact}</p>
+                    <div className="tags">
+                      <span>{event.companyLabel}</span>
+                      <span>{event.product}</span>
+                      <span>{event.kind}</span>
+                      <span>{event.evidence} evidence</span>
+                      <span>{attribution(event)} attribution</span>
+                      {event.resetIssued && <span>reset lag: {lagHours(event) ?? 'unknown'}h</span>}
+                    </div>
+                    <p className="notes">{event.notes}</p>
+                    {event.sourceUrl && <a className="source" href={event.sourceUrl} target="_blank" rel="noreferrer">Source: {event.sourceLabel}</a>}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section id="failure-points" className="section">
+          <div className="section-heading">
+            <p className="card-label">Failure analysis</p>
+            <h2>Ways the forecast breaks</h2>
+            <p>This is the part that keeps the site honest on GitHub/Vercel.</p>
+          </div>
+          <div className="failure-grid">
+            {failurePoints.map((point) => (
+              <article className="failure" key={point.title}>
+                <h3>{point.title}</h3>
+                <p>{point.detail}</p>
+                <small>{point.mitigation}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="section companies">
+          {companies.map((company) => (
+            <article key={company.id}>
+              <p className="card-label">{company.name}</p>
+              <h3>{company.products.join(' · ')}</h3>
+              <p>Signal quality: {company.publicSignalQuality}/100</p>
+              <p>Watch: {company.resetChannels.join(', ')}</p>
+              <a href={company.statusUrl} target="_blank" rel="noreferrer">{company.statusUrl}</a>
             </article>
           ))}
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <section className="section companies">
-        {companies.map((company) => (
-          <article key={company.id}>
-            <p className="card-label">{company.name}</p>
-            <h3>{company.products.join(' · ')}</h3>
-            <p>Signal quality: {company.publicSignalQuality}/100</p>
-            <p>Watch: {company.resetChannels.join(', ')}</p>
-            <a href={company.statusUrl} target="_blank">{company.statusUrl}</a>
-          </article>
-        ))}
-      </section>
-    </main>
+      <footer className="site-footer">
+        <span>Reset Watch is an unofficial public-signal tracker. Free sources only; no paid X/API dependency.</span>
+        <a href="https://status.claude.com" target="_blank" rel="noreferrer">Anthropic status</a>
+        <a href="https://status.openai.com" target="_blank" rel="noreferrer">OpenAI status</a>
+        <a href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
+      </footer>
+    </>
   )
 }
 

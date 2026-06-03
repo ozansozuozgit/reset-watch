@@ -38,6 +38,36 @@ export type ResetFeed = {
   resets: ResetAnnouncement[]
 }
 
+export type SocialExample = {
+  source: string
+  title: string
+  url?: string
+  published_at?: string
+  matched_terms?: string[]
+}
+
+export type SocialTopic = {
+  id: string
+  company: CompanyId
+  product: string
+  heat: number
+  sentiment: number
+  volume: number
+  pain_chatter: number
+  reset_chatter: number
+  top_terms: string[]
+  sources: Record<string, number>
+  examples: SocialExample[]
+  notes: string[]
+}
+
+export type SocialSnapshot = {
+  generated_at: string
+  sources: { name: string; url: string }[]
+  topics: SocialTopic[]
+  errors: { topic?: string; source?: string; message: string }[]
+}
+
 const sourceLabel = (source: CompanyId) => source === 'anthropic' ? 'Anthropic' : 'OpenAI'
 
 function inferProduct(incident: StatusIncident) {
@@ -51,7 +81,7 @@ function inferProduct(incident: StatusIncident) {
 function inferKind(incident: StatusIncident): EventKind {
   const text = `${incident.name} ${(incident.relevant_updates ?? []).map((u) => u.body).join(' ')}`.toLowerCase()
   if (/rate limit|usage limit|quota|meter|consumed/.test(text)) return 'metering-bug'
-  if (/latency|slow|performance|compaction/.test(text)) return 'latency'
+  if (/latency|slow|performance|compaction|degraded|degradation/.test(text)) return 'latency'
   if (/capacity|overload/.test(text)) return 'capacity'
   if (/policy|plan|subscription/.test(text)) return 'policy-change'
   return 'outage'
@@ -135,6 +165,12 @@ export function mergeEvents(seedEvents: Event[], liveEvents: Event[]) {
     seen.add(key)
     return true
   })
+}
+
+export function socialTopicForCompany(social: SocialSnapshot | null | undefined, company: CompanyId) {
+  return social?.topics
+    ?.filter((topic) => topic.company === company)
+    .sort((a, b) => b.heat - a.heat)[0]
 }
 
 export async function loadJson<T>(path: string): Promise<T | null> {
