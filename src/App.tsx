@@ -58,6 +58,39 @@ function exampleSourceLabel(source: string) {
   return labels[source] ?? 'Public mention'
 }
 
+function eventKindLabel(kind: string) {
+  const labels: Record<string, string> = {
+    outage: 'Outage',
+    'metering-bug': 'Metering bug',
+    latency: 'Latency',
+    capacity: 'Capacity',
+    'policy-change': 'Policy change',
+    reset: 'Reset',
+  }
+  return labels[kind] ?? kind
+}
+
+function evidenceLabel(evidence: string) {
+  const labels: Record<string, string> = {
+    official: 'Official source',
+    employee: 'Team post',
+    community: 'Community report',
+    inferred: 'Inferred signal',
+  }
+  return labels[evidence] ?? evidence
+}
+
+function attributionLabel(value: string) {
+  const labels: Record<string, string> = {
+    'Explicit/strong': 'Strong attribution',
+    Likely: 'Likely attribution',
+    Adjacent: 'Adjacent timing',
+    Weak: 'Weak attribution',
+    'No reset observed': 'No reset observed',
+  }
+  return labels[value] ?? value
+}
+
 const reportUrl = 'https://github.com/ozansozuozgit/reset-watch/issues/new?title=Codex%20feels%20degraded&body=What%20changed%3F%0A-%20%5B%20%5D%20Slow%0A-%20%5B%20%5D%20Errors%0A-%20%5B%20%5D%20Rate%20limit%20drained%20too%20fast%0A-%20%5B%20%5D%20Reset%20did%20not%20happen%0A-%20%5B%20%5D%20Model%20quality%20feels%20worse%0A%0APlan%2Fsurface%3A%0ATime%20and%20timezone%3A%0AAnything%20public%20to%20link%3A'
 
 function App() {
@@ -261,8 +294,8 @@ function App() {
         <section id="live-incidents" className="section">
           <div className="section-heading">
             <p className="card-label">Live incidents</p>
-            <h2>Status feed matches</h2>
-            <p>Hourly snapshots pull official incident feeds and merge them into the forecast. Public chatter is shown separately above.</p>
+            <h2>Official incident matches</h2>
+            <p>Official incidents refresh regularly and feed into the forecast. Public chatter is shown separately above.</p>
           </div>
           <div className="live-meta">
             <span>Official update: {snapshot ? fmtDate(snapshot.generated_at) : 'refreshing'}</span>
@@ -289,8 +322,8 @@ function App() {
                     <div className="tags">
                       <span>{event.companyLabel}</span>
                       <span>{event.product}</span>
-                      <span>{event.kind}</span>
-                      <span>{event.resetIssued ? 'matched reset' : 'no matched reset'}</span>
+                      <span>{eventKindLabel(event.kind)}</span>
+                      <span>{event.resetIssued ? 'Reset matched' : 'No reset matched yet'}</span>
                     </div>
                   </div>
                 </article>
@@ -338,9 +371,9 @@ function App() {
                     <div className="tags">
                       <span>{event.companyLabel}</span>
                       <span>{event.product}</span>
-                      <span>{event.kind}</span>
-                      <span>{event.evidence} evidence</span>
-                      <span>{attribution(event)} attribution</span>
+                      <span>{eventKindLabel(event.kind)}</span>
+                      <span>{evidenceLabel(event.evidence)}</span>
+                      <span>{attributionLabel(attribution(event))}</span>
                       {event.resetIssued && <span>reset lag: {lagHours(event) ?? 'unknown'}h</span>}
                     </div>
                     <p className="notes">{event.notes}</p>
