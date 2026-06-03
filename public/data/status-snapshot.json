@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-02T23:56:32.353Z",
+  "generated_at": "2026-06-03T01:31:58.019Z",
   "sources": [
     {
       "name": "openai",
@@ -17,9 +17,10 @@
       "source": "openai",
       "id": "01KT5B2V94YX1T1M88BVQHB58J",
       "name": "codex-gpt-image-2-does-not-exist-errors",
-      "status": "monitoring",
+      "status": "resolved",
       "impact": "minor",
       "created_at": "2026-06-02T23:35:44Z",
+      "resolved_at": "2026-06-03T00:13:15Z",
       "components": [],
       "keyword_match": true,
       "relevant_updates": []
