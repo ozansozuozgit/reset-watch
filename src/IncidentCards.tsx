@@ -51,7 +51,7 @@ export function IncidentCards({ stats, corroboration, loading }: Props) {
           <article className={`incident-card tier-${tier}`} key={provider.id}>
             <div className="ic-top">
               <div className="ic-id">
-                <span className="ic-dot" aria-hidden="true">{tone.dot}</span>
+                <span className="ic-dot" aria-hidden="true" />
                 <div>
                   <h3>{provider.label}</h3>
                   <span className="ic-tier">{tone.label}</span>

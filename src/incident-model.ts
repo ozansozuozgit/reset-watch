@@ -73,8 +73,8 @@ export function topSymptoms(stat: ReportStat, limit = 3): { id: SymptomId; count
     .slice(0, limit)
 }
 
-export const TIER_COPY: Record<StatusTier, { dot: string; label: string }> = {
-  normal: { dot: '🟩', label: 'Normal' },
-  elevated: { dot: '🟧', label: 'Elevated' },
-  spike: { dot: '🟥', label: 'Spike' },
+export const TIER_COPY: Record<StatusTier, { label: string }> = {
+  normal: { label: 'Normal' },
+  elevated: { label: 'Elevated' },
+  spike: { label: 'Spike' },
 }

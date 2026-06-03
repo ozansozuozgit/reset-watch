@@ -175,7 +175,9 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 
 /* ── AI Down Detector: live status hero ───────────────────────────── */
 .hero-title { font: 700 clamp(34px, 5vw, 56px)/1.02 'Geist', sans-serif; letter-spacing: -.045em; margin: 14px 0 0; text-wrap: balance; }
-.hero-dot { font-size: .52em; vertical-align: .18em; margin-right: .32em; }
+.hero-dot { display: inline-block; width: .34em; height: .34em; border-radius: 50%; vertical-align: .26em; margin-right: .36em; background: var(--green-text); box-shadow: 0 0 0 .12em rgba(52,101,56,.16); }
+.hero-dot.tier-elevated { background: var(--yellow-text); box-shadow: 0 0 0 .12em rgba(138,97,0,.16); }
+.hero-dot.tier-spike { background: var(--red-text); box-shadow: 0 0 0 .12em rgba(159,47,45,.18); }
 .hero-status { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; margin-top: 28px; }
 
 .incident-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -184,8 +186,10 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 .incident-card.tier-spike { border-color: rgba(159,47,45,.4); }
 
 .ic-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.ic-id { display: flex; align-items: center; gap: 10px; }
-.ic-dot { font-size: 14px; line-height: 1; }
+.ic-id { display: flex; align-items: center; gap: 11px; }
+.ic-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--green-text); box-shadow: 0 0 0 4px rgba(52,101,56,.12); margin-top: 6px; }
+.tier-elevated .ic-dot { background: var(--yellow-text); box-shadow: 0 0 0 4px rgba(138,97,0,.12); }
+.tier-spike .ic-dot { background: var(--red-text); box-shadow: 0 0 0 4px rgba(159,47,45,.14); }
 .ic-id h3 { margin: 0; font-size: 20px; letter-spacing: -.03em; }
 .ic-tier { font: 600 11px/1.2 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .tier-elevated .ic-tier { color: var(--yellow-text); }

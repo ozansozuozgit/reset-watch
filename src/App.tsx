@@ -6,7 +6,7 @@ import { attribution, buildPredictions, eventPainScore, eventResetProbability, l
 import { IncidentCards } from './IncidentCards'
 import { ReportWidget } from './ReportWidget'
 import { fetchReportStats } from './supabase'
-import { deriveStatus, TIER_COPY, tierIsWorse, type StatusTier } from './incident-model'
+import { deriveStatus, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
@@ -195,7 +195,7 @@ function App() {
       <main id="top">
         <section className="hero">
           <div className="eyebrow"><span /> Is your AI coding tool down right now?</div>
-          <h1 className="hero-title"><span className="hero-dot" aria-hidden="true">{TIER_COPY[overallTier].dot}</span>{heroHeadline}</h1>
+          <h1 className="hero-title"><span className={`hero-dot tier-${overallTier}`} aria-hidden="true" />{heroHeadline}</h1>
           <p className="lede">
             AI Down Detector crowdsources live reports from developers, then cross-checks them against
             official status pages — so you can tell a real outage from your own machine.
