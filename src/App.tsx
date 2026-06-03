@@ -48,6 +48,16 @@ function communityBasis(volume: number, heat: number) {
   return 'No clear public wave detected'
 }
 
+function exampleSourceLabel(source: string) {
+  const labels: Record<string, string> = {
+    hn: 'Forum mention',
+    'x-search-snippet': 'Public post',
+    'reddit-search-snippet': 'Community thread',
+    'bluesky-search-snippet': 'Social post',
+  }
+  return labels[source] ?? 'Public mention'
+}
+
 const reportUrl = 'https://github.com/ozansozuozgit/reset-watch/issues/new?title=Codex%20feels%20degraded&body=What%20changed%3F%0A-%20%5B%20%5D%20Slow%0A-%20%5B%20%5D%20Errors%0A-%20%5B%20%5D%20Rate%20limit%20drained%20too%20fast%0A-%20%5B%20%5D%20Reset%20did%20not%20happen%0A-%20%5B%20%5D%20Model%20quality%20feels%20worse%0A%0APlan%2Fsurface%3A%0ATime%20and%20timezone%3A%0AAnything%20public%20to%20link%3A'
 
 function App() {
@@ -225,7 +235,7 @@ function App() {
                 <div className="examples">
                   {topic.examples.slice(0, 4).map((example) => (
                     <a href={example.url} target="_blank" rel="noreferrer" key={`${example.source}-${example.title}`}>
-                      <small>{example.source}</small>
+                      <small>{exampleSourceLabel(example.source)}</small>
                       <span>{example.title}</span>
                     </a>
                   ))}
