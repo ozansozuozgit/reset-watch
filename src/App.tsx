@@ -17,7 +17,7 @@ function scoreTone(score: number) {
 }
 
 function confidenceCopy(label: Prediction['label']) {
-  if (label === 'hot') return 'make-good pressure is visible'
+  if (label === 'hot') return 'reset pressure is visible'
   if (label === 'likely') return 'watch reset channels closely'
   if (label === 'watch') return 'needs stronger usage evidence'
   return 'background monitoring only'
@@ -107,7 +107,7 @@ function App() {
 
       <main id="top">
         <section className="hero">
-          <div className="eyebrow"><span /> Claude Code + Codex make-good and pain monitor</div>
+          <div className="eyebrow"><span /> Claude Code + Codex usage reset and pain monitor</div>
           <div className="hero-grid">
             <div>
               <h1>Is it reset-worthy, or just painful?</h1>
@@ -120,7 +120,7 @@ function App() {
                 <a className="ghost" href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
               </div>
             </div>
-            <aside className="signal-card dual" aria-label="Current make-good and pain summary">
+            <aside className="signal-card dual" aria-label="Current reset and pain summary">
               <p className="card-label">Current read</p>
               <div className="readout-grid">
                 <div>
@@ -150,9 +150,9 @@ function App() {
               <p>{latestIncident ? latestIncident.title : 'The forecast is using curated historical evidence until the live feed updates.'}</p>
             </article>
             <article>
-              <span>High-fit signals</span>
+              <span>Reset-relevant matches</span>
               <b>{snapshot ? highFitCount : '—'}</b>
-              <p>Live incidents with strong usage, quota, metering, or root-cause language.</p>
+              <p>Current incidents with strong usage, quota, metering, or root-cause language.</p>
             </article>
             <article>
               <span>Signal health</span>
@@ -166,7 +166,7 @@ function App() {
           <div className="section-heading">
             <p className="card-label">Forecast</p>
             <h2>Reset odds vs pain index</h2>
-            <p>Generic outages can make the pain index spike while reset odds stay low. Quota, metering, over-drain, and root-cause language still matter most for make-good resets.</p>
+            <p>Generic outages can make the pain index spike while reset odds stay low. Quota, metering, over-drain, and root-cause language still matter most for usage resets.</p>
           </div>
           <div className="prediction-grid">
             {predictions.map((prediction) => (
@@ -243,8 +243,8 @@ function App() {
               </article>
             )) : (
               <article className="empty-state">
-                <h3>No community snapshot loaded yet</h3>
-                <p>Run <code>npm run fetch:social</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
+                <h3>No community read yet</h3>
+                <p>Community signals are quiet or still refreshing. Check back shortly if chatter is moving fast.</p>
               </article>
             )}
           </div>
@@ -265,10 +265,10 @@ function App() {
             <p>Hourly snapshots pull official incident feeds and merge them into the forecast. Public chatter is shown separately above.</p>
           </div>
           <div className="live-meta">
-            <span>Status snapshot: {snapshot ? fmtDate(snapshot.generated_at) : 'loading or missing'}</span>
-            <span>Community snapshot: {socialSnapshot ? fmtDate(socialSnapshot.generated_at) : 'loading or missing'}</span>
-            <span>Status errors: {snapshot?.errors.length ?? 0}</span>
-            <span>Community errors: {socialSnapshot?.errors.length ?? 0}</span>
+            <span>Official update: {snapshot ? fmtDate(snapshot.generated_at) : 'refreshing'}</span>
+            <span>Community update: {socialSnapshot ? fmtDate(socialSnapshot.generated_at) : 'refreshing'}</span>
+            <span>Official feed issues: {snapshot?.errors.length ?? 0}</span>
+            <span>Community feed issues: {socialSnapshot?.errors.length ?? 0}</span>
           </div>
           <div className="timeline compact">
             {recentLiveEvents.length ? recentLiveEvents.map((event) => {
@@ -281,7 +281,7 @@ function App() {
                     <div className="event-title-row">
                       <h3>{event.title}</h3>
                       <div className="event-pills">
-                        <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+                        <span className={`pill ${scoreTone(probability)}`}>{probability}% reset signal</span>
                         <span className={`pill ${scoreTone(pain)}`}>{pain}% pain</span>
                       </div>
                     </div>
@@ -297,8 +297,8 @@ function App() {
               )
             }) : (
               <article className="empty-state">
-                <h3>No live matches loaded yet</h3>
-                <p>Run <code>npm run fetch:status</code>, or wait for the hourly GitHub Action after pushing the repo.</p>
+                <h3>No current incident matches</h3>
+                <p>Official incident feeds have not surfaced a strong reset-relevant match yet.</p>
               </article>
             )}
           </div>
@@ -307,7 +307,7 @@ function App() {
         <section id="method" className="section split">
           <div>
             <p className="card-label">Method</p>
-            <h2>What the model watches</h2>
+            <h2>What Reset Watch looks for</h2>
             <p className="muted">The strongest reset trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak reset signals but strong pain signals.</p>
           </div>
           <ol className="signal-list">
@@ -319,9 +319,9 @@ function App() {
 
         <section id="evidence" className="section">
           <div className="section-heading">
-            <p className="card-label">Evidence ledger</p>
+            <p className="card-label">Past evidence</p>
             <h2>Known reset examples</h2>
-            <p>Curated examples stay in the repo; live incidents and community heat are merged above for current forecasting.</p>
+            <p>Past examples provide the baseline; current incidents and community heat update the read above.</p>
           </div>
           <div className="timeline">
             {seedEvents.map((event) => {
@@ -332,7 +332,7 @@ function App() {
                   <div className="event-body">
                     <div className="event-title-row">
                       <h3>{event.title}</h3>
-                      <span className={`pill ${scoreTone(probability)}`}>{probability}% reset-fit</span>
+                      <span className={`pill ${scoreTone(probability)}`}>{probability}% reset signal</span>
                     </div>
                     <p>{event.userImpact}</p>
                     <div className="tags">
@@ -354,9 +354,9 @@ function App() {
 
         <section id="failure-points" className="section">
           <div className="section-heading">
-            <p className="card-label">Failure analysis</p>
-            <h2>Ways the forecast breaks</h2>
-            <p>This is the part that keeps the site honest on GitHub/Vercel.</p>
+            <p className="card-label">Caveats</p>
+            <h2>Where the forecast can be wrong</h2>
+            <p>These caveats explain when the score can miss, overreact, or confuse pain with reset likelihood.</p>
           </div>
           <div className="failure-grid">
             {failurePoints.map((point) => (
@@ -374,8 +374,8 @@ function App() {
             <article key={company.id}>
               <p className="card-label">{company.name}</p>
               <h3>{company.products.join(' · ')}</h3>
-              <p>Signal quality: {company.publicSignalQuality}/100</p>
-              <p>Watch: {company.resetChannels.join(', ')}</p>
+              <p>Public signal clarity: {company.publicSignalQuality}/100</p>
+              <p>Useful places to check: {company.resetChannels.join(', ')}</p>
               <a href={company.statusUrl} target="_blank" rel="noreferrer">{company.statusUrl}</a>
             </article>
           ))}

@@ -127,12 +127,12 @@ export function buildPredictions(events: Event[], social?: SocialSnapshot | null
       return d
     })
     if ((socialTopic?.heat ?? 0) >= 45) {
-      painDrivers.push(`${socialTopic?.product}: community heat ${socialTopic?.heat}/100 across free sources`)
+      painDrivers.push(`${socialTopic?.product}: community heat ${socialTopic?.heat}/100 from public chatter`)
     }
 
     const blockers = [
       recent.some((event) => !event.usageRelated) ? 'Some recent incidents are generic availability/latency, which rarely force resets.' : '',
-      recent.some((event) => event.evidence === 'community') ? 'Some evidence is repost/community-level rather than original official source.' : '',
+      recent.some((event) => event.evidence === 'community') ? 'Some evidence comes from reposts or user reports rather than the original announcement.' : '',
       (socialTopic?.heat ?? 0) > 50 && (socialTopic?.reset_chatter ?? 0) < 35 ? 'Community pain is high, but reset-specific language is still weak.' : '',
       'A reset remains a policy/support decision; public telemetry cannot guarantee it.',
     ].filter(Boolean)

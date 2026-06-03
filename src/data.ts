@@ -70,7 +70,7 @@ export const events: Event[] = [
     resetAt: '2026-02-26T18:00:00Z',
     resetScope: 'All Claude Code users',
     evidence: 'employee',
-    sourceLabel: 'Anthropic Claude Code engineer post surfaced in X/web search',
+    sourceLabel: 'Public Claude Code team post',
     sourceUrl: 'https://x.com/trq212/status/2027232172810416493',
     notes: 'This is the cleanest known example: a metering/root-cause bug followed by a broad rate-limit reset.',
   },
@@ -90,8 +90,8 @@ export const events: Event[] = [
     resetAt: '2026-04-23T18:00:00Z',
     resetScope: 'Claude Code subscribers',
     evidence: 'community',
-    sourceLabel: 'Secondary public repost/search result; needs original post archival',
-    notes: 'Track as lower-confidence until original post/status entry is captured.',
+    sourceLabel: 'Secondary public repost; original source not yet captured',
+    notes: 'Track as lower-confidence until the original announcement or status entry is found.',
   },
   {
     id: 'codex-rate-limit-2026-05-22',
@@ -158,9 +158,9 @@ export const events: Event[] = [
 
 export const failurePoints = [
   {
-    title: 'Status APIs omit the make-good',
-    detail: 'Resets are often announced by product engineers or reposted by users, not attached to the official incident object.',
-    mitigation: 'Store status-page data and social reset announcements as separate evidence streams, then match by time window and product.',
+    title: 'Official status pages omit the reset',
+    detail: 'Resets are often announced by product engineers or reposted by users, not attached to the official incident.',
+    mitigation: 'Track official incidents and public reset mentions separately, then compare timing, product, and scope.',
   },
   {
     title: 'Celebration resets look like apology resets',
@@ -170,12 +170,12 @@ export const failurePoints = [
   {
     title: 'Private/account-specific limits are invisible',
     detail: 'Companies may quietly credit subsets of users without public posts.',
-    mitigation: 'Allow manual reports, but keep them lower confidence until clustered or corroborated.',
+    mitigation: 'Accept user reports, but keep them lower confidence until several people report the same pattern.',
   },
   {
     title: 'Time zones and deleted posts distort lag',
     detail: 'X posts, status updates, and community screenshots may disagree or disappear.',
-    mitigation: 'Archive source snapshots and normalize all event times to UTC.',
+    mitigation: 'Keep durable source links where possible and compare every event in one timezone.',
   },
   {
     title: 'Model or plan changes masquerade as incidents',
@@ -185,7 +185,7 @@ export const failurePoints = [
   {
     title: 'Prediction can become wishcasting',
     detail: 'A reset is a business decision, not a natural law.',
-    mitigation: 'Display confidence bands, not countdowns. Expose all features driving the score.',
+    mitigation: 'Display confidence bands, not countdowns, and show the signals behind the score.',
   },
 ]
 

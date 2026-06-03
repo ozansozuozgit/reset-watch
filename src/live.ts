@@ -145,7 +145,7 @@ export function statusIncidentToEvent(incident: StatusIncident, resets: ResetAnn
     resetAt: reset?.announced_at,
     resetScope: reset?.scope,
     evidence: 'official',
-    sourceLabel: `${sourceLabel(incident.source)} status API`,
+    sourceLabel: `${sourceLabel(incident.source)} status page`,
     sourceUrl: incident.source === 'openai' ? 'https://status.openai.com' : 'https://status.claude.com',
     notes: reset ? `Matched to reset announcement: ${reset.title}` : 'Live status-page incident matched by coding/usage keywords.',
   }
