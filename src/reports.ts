@@ -11,7 +11,10 @@ export type ProviderId =
   | 'openai-api'
   | 'claude-api'
 
-export type SymptomId = 'slow' | 'errors' | 'limits' | 'no-reset' | 'quality'
+export type SymptomId = 'slow' | 'errors' | 'limits' | 'no-reset' | 'quality' | 'down'
+
+// One-tap reporting: a single "I'm having a problem" signal, no symptom picker.
+export const ONE_TAP_SYMPTOM: SymptomId = 'down'
 
 export type ProviderDef = {
   id: ProviderId

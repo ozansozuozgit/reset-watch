@@ -6,7 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 
 const PROVIDERS = ['codex', 'claude-code', 'chatgpt', 'claude-ai', 'openai-api', 'claude-api']
-const SYMPTOMS = ['slow', 'errors', 'limits', 'no-reset', 'quality']
+const SYMPTOMS = ['slow', 'errors', 'limits', 'no-reset', 'quality', 'down']
 const COOLDOWN_MINUTES = 20
 
 const CORS = {

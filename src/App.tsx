@@ -4,7 +4,6 @@ import { companies, events as seedEvents, failurePoints, watchlistSignals } from
 import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction } from './model'
 import { IncidentCards } from './IncidentCards'
-import { ReportWidget } from './ReportWidget'
 import { fetchReportStats } from './supabase'
 import { blendCondition, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, type ProviderId, type ReportStat } from './reports'
@@ -286,15 +285,14 @@ function App() {
               until developers start reporting or an official incident lands — so report it if you see it.
             </p>
           </div>
-          <div className="hero-status">
-            <IncidentCards
-              stats={reportStats}
-              painByProvider={painByProvider}
-              corroboration={corroboration}
-              loading={statsLoading}
-            />
-            <ReportWidget onSubmitted={refreshStats} />
-          </div>
+          <IncidentCards
+            stats={reportStats}
+            painByProvider={painByProvider}
+            corroboration={corroboration}
+            loading={statsLoading}
+            onSubmitted={refreshStats}
+          />
+          <p className="report-foot">Anonymous · one tap · one report per tool every 20 minutes.</p>
         </section>
 
         <section id="predictions" className="section">
@@ -353,30 +351,37 @@ function App() {
             <p>A lightweight read on whether developers are broadly reporting slowdowns, errors, limit drain, or degraded coding sessions.</p>
           </div>
           <div className="social-grid">
-            {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => (
-              <article className="social-card" key={topic.id}>
+            {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => {
+              const quiet = topic.heat === 0 && topic.volume === 0
+              return (
+              <article className={`social-card ${quiet ? 'quiet' : ''}`} key={topic.id}>
                 <div className="social-top">
                   <div>
                     <p className="card-label">{topic.product}</p>
-                    <h3>{topic.heat}/100 heat</h3>
-                    <span>{communityBasis(topic.volume, topic.heat)}</span>
+                    <h3>{quiet ? 'Quiet' : `${topic.heat}/100 heat`}</h3>
+                    <span>{quiet ? 'No public complaints right now' : communityBasis(topic.volume, topic.heat)}</span>
                   </div>
-                  <span className={`pill ${scoreTone(topic.heat)}`}>{topic.pain_chatter}/100 pain</span>
+                  <span className={`pill ${quiet ? 'calm' : scoreTone(topic.heat)}`}>{quiet ? 'all calm' : `${topic.pain_chatter}/100 pain`}</span>
                 </div>
-                <div className="tags">
-                  {topic.top_terms.slice(0, 8).map((term) => <span key={term}>{term}</span>)}
-                </div>
-                <p className="source-line">Basis: {topic.heat >= 58 ? sourceSummary(topic.sources) : 'No active public cluster'}</p>
-                <div className="examples">
-                  {topic.examples.slice(0, 4).map((example) => (
-                    <a href={example.url} target="_blank" rel="noreferrer" key={`${example.source}-${example.title}`}>
-                      <small>{exampleSourceLabel(example.source)}</small>
-                      <span>{example.title}</span>
-                    </a>
-                  ))}
-                </div>
+                {!quiet && (
+                  <>
+                    <div className="tags">
+                      {topic.top_terms.slice(0, 8).map((term) => <span key={term}>{term}</span>)}
+                    </div>
+                    <p className="source-line">Basis: {topic.heat >= 58 ? sourceSummary(topic.sources) : 'No active public cluster'}</p>
+                    <div className="examples">
+                      {topic.examples.slice(0, 4).map((example) => (
+                        <a href={example.url} target="_blank" rel="noreferrer" key={`${example.source}-${example.title}`}>
+                          <small>{exampleSourceLabel(example.source)}</small>
+                          <span>{example.title}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                )}
               </article>
-            )) : (
+              )
+            }) : (
               <article className="empty-state">
                 <h3>No community read yet</h3>
                 <p>Community signals are quiet or still refreshing. Check back shortly if chatter is moving fast.</p>

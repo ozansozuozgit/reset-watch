@@ -147,7 +147,10 @@ li + li { margin-top: 6px; }
 .source:hover { text-decoration: underline; }
 .empty-state { border: 1px dashed var(--border-strong); border-radius: 16px; background: var(--surface-soft); padding: 18px; }
 code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px; padding: 2px 5px; font-family: 'Geist Mono', monospace; font-size: .92em; }
-.social-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.social-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.social-card.quiet { background: var(--surface-soft); }
+.social-card.quiet h3 { color: var(--green-text); }
+.pill.calm { background: var(--green-bg); color: var(--green-text); border-color: transparent; }
 .social-card { border: 1px solid var(--border); border-radius: 20px; background: var(--surface); padding: 18px; box-shadow: 0 10px 36px rgba(56,50,39,.045); }
 .social-top { display: flex; justify-content: space-between; gap: 14px; align-items: start; }
 .social-top h3 { font-size: 30px; line-height: 1; letter-spacing: -.045em; margin: 8px 0 4px; }
@@ -222,30 +225,15 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 .status-pill.tier-elevated { background: var(--yellow-bg); color: var(--yellow-text); }
 .status-pill.tier-spike { background: var(--red-bg); color: var(--red-text); }
 
-.ic-badge { margin: 0; margin-top: auto; font: 500 12px/1.4 'Geist Mono', monospace; padding: 7px 10px; border-radius: 10px; }
-.ic-badge.user-only { background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); }
+.ic-badge { margin: 0; font: 500 12px/1.4 'Geist Mono', monospace; padding: 7px 10px; border-radius: 10px; }
 .ic-badge.corroborated { background: var(--red-bg); color: var(--red-text); border: 1px solid transparent; }
 
-/* report widget */
-.report-widget { border: 1px solid var(--border-strong); border-radius: 22px; background: linear-gradient(135deg, #fff, #f3f7fb); padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
-.rw-head h3 { margin: 6px 0 4px; font-size: 22px; letter-spacing: -.035em; }
-.rw-sub { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
-.rw-field { display: flex; flex-direction: column; gap: 8px; }
-.rw-field > span { font: 600 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.rw-field select { font: 500 14px 'Geist', sans-serif; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: #fff; color: var(--text); }
-.rw-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.rw-chip { font: 550 13px 'Geist', sans-serif; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: #fff; color: var(--text); cursor: pointer; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
-.rw-chip:hover { transform: translateY(-1px); }
-.rw-chip.on { background: var(--charcoal); color: #fff; border-color: var(--charcoal); }
-.rw-submit { font: 650 14px 'Geist', sans-serif; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--charcoal); background: var(--charcoal); color: #fff; cursor: pointer; transition: transform .15s ease, background .15s ease; }
-.rw-submit:hover:not(:disabled) { transform: translateY(-1px); background: #2b2c27; }
-.rw-submit:disabled { opacity: .45; cursor: not-allowed; }
-.rw-msg { margin: 0; font: 500 13px/1.45 'Geist', sans-serif; padding: 9px 11px; border-radius: 10px; }
-.rw-msg.ok { background: var(--green-bg); color: var(--green-text); }
-.rw-msg.warn { background: var(--yellow-bg); color: var(--yellow-text); }
-.rw-msg.err { background: var(--red-bg); color: var(--red-text); }
+/* one-tap report button on each live-status card */
+.ic-report { margin-top: auto; width: 100%; font: 650 13px 'Geist', sans-serif; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--charcoal); background: var(--charcoal); color: #fff; cursor: pointer; transition: transform .15s ease, background .15s ease; }
+.ic-report:hover:not(:disabled) { transform: translateY(-1px); background: #2b2c27; }
+.ic-report:disabled { opacity: .55; cursor: default; }
+.report-foot { margin: 16px 0 0; color: var(--muted-2); font: 500 13px 'Geist Mono', monospace; }
 
-.signal-card.supporting { margin-top: 26px; max-width: 560px; background: rgba(255,255,255,.7); }
 .report-cta-line { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
 .report-cta-line a { color: var(--blue-text); font-weight: 600; text-decoration: none; }
 .report-cta-line a:hover { text-decoration: underline; }

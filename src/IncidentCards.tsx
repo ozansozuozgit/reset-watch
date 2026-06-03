@@ -1,5 +1,7 @@
-import { blendCondition, topSymptoms, TIER_COPY, type ConditionDriver } from './incident-model'
-import { PROVIDERS, symptomLabel, type ProviderId, type ReportStat } from './reports'
+import { useState } from 'react'
+import { blendCondition, TIER_COPY, type ConditionDriver } from './incident-model'
+import { ONE_TAP_SYMPTOM, PROVIDERS, type ProviderId, type ReportStat } from './reports'
+import { isConfigured, submitReport } from './supabase'
 
 const EMPTY_STAT = (provider: ProviderId): ReportStat => ({
   provider,
@@ -8,6 +10,13 @@ const EMPTY_STAT = (provider: ProviderId): ReportStat => ({
   symptom_breakdown: {},
   hourly_buckets: [],
 })
+
+type ReportState =
+  | { kind: 'idle' }
+  | { kind: 'sending' }
+  | { kind: 'done' }
+  | { kind: 'cooldown' }
+  | { kind: 'error' }
 
 // Sparse integer counts read better as bars than a floating line.
 function Sparkline({ buckets }: { buckets: { t: string; c: number }[] }) {
@@ -45,10 +54,36 @@ type Props = {
   painByProvider: Partial<Record<ProviderId, number>>
   corroboration: Partial<Record<ProviderId, string>>
   loading: boolean
+  onSubmitted: () => void
 }
 
-export function IncidentCards({ stats, painByProvider, corroboration, loading }: Props) {
+export function IncidentCards({ stats, painByProvider, corroboration, loading, onSubmitted }: Props) {
   const statByProvider = new Map(stats.map((s) => [s.provider, s]))
+  const [reportState, setReportState] = useState<Partial<Record<ProviderId, ReportState>>>({})
+
+  async function report(provider: ProviderId) {
+    if (reportState[provider]?.kind === 'sending') return
+    setReportState((prev) => ({ ...prev, [provider]: { kind: 'sending' } }))
+    const result = await submitReport(provider, ONE_TAP_SYMPTOM)
+    if (result.ok) {
+      setReportState((prev) => ({ ...prev, [provider]: { kind: 'done' } }))
+      onSubmitted()
+    } else if (result.error === 'cooldown') {
+      setReportState((prev) => ({ ...prev, [provider]: { kind: 'cooldown' } }))
+    } else {
+      setReportState((prev) => ({ ...prev, [provider]: { kind: 'error' } }))
+    }
+  }
+
+  function reportLabel(state: ReportState | undefined): string {
+    switch (state?.kind) {
+      case 'sending': return 'Sending…'
+      case 'done': return 'Thanks — counted ✓'
+      case 'cooldown': return 'Already reported · try later'
+      case 'error': return 'Try again'
+      default: return isConfigured ? 'Yes, it’s having problems' : 'Reporting goes live soon'
+    }
+  }
 
   return (
     <div className="incident-cards" aria-label="Live tool status">
@@ -61,8 +96,9 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading }:
           officialIncident: Boolean(incidentName),
         })
         const tier = condition.tier
-        const symptoms = topSymptoms(stat, 3)
         const note = driverNote(condition.driver, incidentName)
+        const rState = reportState[provider.id]
+        const done = rState?.kind === 'done' || rState?.kind === 'cooldown'
 
         return (
           <article className={`incident-card tier-${tier}`} key={provider.id}>
@@ -85,21 +121,18 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading }:
               <span className="ic-24h">{stat.count_24h} in 24h</span>
             </div>
 
-            {note ? (
-              <p className="ic-note">{note}</p>
-            ) : symptoms.length > 0 ? (
-              <div className="ic-symptoms">
-                {symptoms.map((s) => (
-                  <span key={s.id} className="ic-symptom">{symptomLabel(s.id)} <b>{s.count}</b></span>
-                ))}
-              </div>
-            ) : (
-              <p className="ic-quiet">No reports in the last hour.</p>
-            )}
+            {note && <p className="ic-note">{note}</p>}
 
-            <p className={`ic-badge ${incidentName ? 'corroborated' : 'user-only'}`}>
-              {incidentName ? `Cross-checked: ${incidentName}` : 'Community-reported'}
-            </p>
+            <button
+              type="button"
+              className="ic-report"
+              disabled={!isConfigured || rState?.kind === 'sending' || done}
+              onClick={() => report(provider.id)}
+            >
+              {reportLabel(rState)}
+            </button>
+
+            {incidentName && <p className="ic-badge corroborated">Cross-checked: {incidentName}</p>}
           </article>
         )
       })}
