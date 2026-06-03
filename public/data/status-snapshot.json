@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T03:29:50.222Z",
+  "generated_at": "2026-06-03T05:59:45.783Z",
   "sources": [
     {
       "name": "openai",
@@ -13,6 +13,38 @@
     }
   ],
   "incidents": [
+    {
+      "source": "openai",
+      "id": "01KT5XJ5ATD6RMYP908WS69FVD",
+      "name": "Elevated error rates on Codex and ChatGPT",
+      "status": "investigating",
+      "impact": "major",
+      "created_at": "2026-06-03T04:58:40Z",
+      "components": [],
+      "keyword_match": true,
+      "relevant_updates": []
+    },
+    {
+      "source": "anthropic",
+      "id": "0w1blp7cngrr",
+      "name": "Issue affecting some Claude Code services",
+      "status": "investigating",
+      "impact": "major",
+      "created_at": "2026-06-03T04:17:04.989Z",
+      "started_at": "2026-06-03T04:17:04.977Z",
+      "resolved_at": null,
+      "components": [
+        "Claude Code"
+      ],
+      "keyword_match": true,
+      "relevant_updates": [
+        {
+          "status": "investigating",
+          "created_at": "2026-06-03T04:17:05.104Z",
+          "body": "We have identified an issue which is resulting in some Claude Code services being degraded. As a result of this issue, users will see issues with Claude Code security reviews, code reviews, routines and some Claude Code web sessions. Our engineers are working to resolve these issues as soon as possible."
+        }
+      ]
+    },
     {
       "source": "openai",
       "id": "01KT5B2V94YX1T1M88BVQHB58J",
@@ -601,18 +633,6 @@
         "Claude Code",
         "Claude Cowork"
       ],
-      "keyword_match": true,
-      "relevant_updates": []
-    },
-    {
-      "source": "openai",
-      "id": "01KRAA341YK58M05V2DFGDRMFB",
-      "name": "Users may experience elevated errors in ChatGPT uploading files and Codex Cloud creating tasks",
-      "status": "resolved",
-      "impact": "minor",
-      "created_at": "2026-05-11T01:23:13Z",
-      "resolved_at": "2026-05-11T05:35:41Z",
-      "components": [],
       "keyword_match": true,
       "relevant_updates": []
     },
