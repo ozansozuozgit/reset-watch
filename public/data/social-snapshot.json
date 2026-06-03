@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T22:59:51.240Z",
+  "generated_at": "2026-06-03T23:55:30.308Z",
   "sources": [
     {
       "name": "hn",
@@ -28,17 +28,17 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.8,
-      "volume": 9,
+      "sentiment": -0.88,
+      "volume": 10,
       "pain_chatter": 100,
-      "reset_chatter": 19,
+      "reset_chatter": 20,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 9
+        "x-search-snippet": 10
       },
       "examples": [
         {
