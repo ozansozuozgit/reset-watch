@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   baselineFromBuckets,
+  blendCondition,
   deriveStatus,
+  painTier,
   topSymptoms,
   tierIsWorse,
   DEFAULT_THRESHOLDS,
@@ -95,6 +97,50 @@ describe('topSymptoms', () => {
       2,
     )
     expect(result).toHaveLength(2)
+  })
+})
+
+describe('painTier', () => {
+  it('maps pain score to tier', () => {
+    expect(painTier(20)).toBe('normal')
+    expect(painTier(58)).toBe('elevated')
+    expect(painTier(88)).toBe('spike')
+  })
+})
+
+describe('blendCondition', () => {
+  it('does NOT report normal when reports are empty but pain is high', () => {
+    // The core bug fix: 0 user reports must not force "normal" when pain is 88.
+    const c = blendCondition({ stat: stat({ count_1h: 0 }), pain: 88 })
+    expect(c.tier).toBe('spike')
+    expect(c.driver).toBe('pain')
+    expect(c.reportsPerHour).toBe(0)
+  })
+
+  it('is normal only when every signal is quiet', () => {
+    const c = blendCondition({ stat: stat({ count_1h: 0 }), pain: 10, officialIncident: false })
+    expect(c.tier).toBe('normal')
+    expect(c.driver).toBe('none')
+  })
+
+  it('an official incident raises a quiet feed to elevated', () => {
+    const c = blendCondition({ stat: stat({ count_1h: 0 }), pain: 10, officialIncident: true })
+    expect(c.tier).toBe('elevated')
+    expect(c.driver).toBe('incident')
+  })
+
+  it('a report spike still wins and is attributed to reports', () => {
+    const c = blendCondition({
+      stat: stat({ count_1h: 10, hourly_buckets: buckets([2, 2, 2, 10]) }),
+      pain: 40,
+    })
+    expect(c.tier).toBe('spike')
+    expect(c.driver).toBe('reports')
+  })
+
+  it('works with no stat at all', () => {
+    expect(blendCondition({ pain: 88 }).tier).toBe('spike')
+    expect(blendCondition({}).tier).toBe('normal')
   })
 })
 

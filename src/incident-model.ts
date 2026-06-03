@@ -78,3 +78,44 @@ export const TIER_COPY: Record<StatusTier, { label: string }> = {
   elevated: { label: 'Elevated' },
   spike: { label: 'Spike' },
 }
+
+// What signal drove the current condition. 'none' means everything is quiet.
+export type ConditionDriver = 'reports' | 'pain' | 'incident' | 'none'
+
+export type Condition = {
+  tier: StatusTier
+  driver: ConditionDriver
+  reportsPerHour: number
+}
+
+// Map a 0-100 community pain score to a status tier (mirrors the site's
+// existing score tones).
+export function painTier(pain: number): StatusTier {
+  if (pain >= 78) return 'spike'
+  if (pain >= 58) return 'elevated'
+  return 'normal'
+}
+
+// Blend crowdsourced reports with community pain and official incidents into
+// one honest condition. We take the HIGHEST severity across signals, so a
+// quiet report feed (0 reports — common with no traffic) can never pull the
+// condition down to "normal" while pain or an official incident is elevated.
+export function blendCondition(args: {
+  stat?: ReportStat
+  pain?: number
+  officialIncident?: boolean
+}): Condition {
+  const reportTier = args.stat ? deriveStatus(args.stat).tier : 'normal'
+  const candidates: { tier: StatusTier; driver: ConditionDriver }[] = [
+    { tier: reportTier, driver: 'reports' },
+    { tier: args.pain != null ? painTier(args.pain) : 'normal', driver: 'pain' },
+    { tier: args.officialIncident ? 'elevated' : 'normal', driver: 'incident' },
+  ]
+  let best = candidates[0]
+  for (const c of candidates) if (tierIsWorse(c.tier, best.tier)) best = c
+  return {
+    tier: best.tier,
+    driver: best.tier === 'normal' ? 'none' : best.driver,
+    reportsPerHour: args.stat?.count_1h ?? 0,
+  }
+}

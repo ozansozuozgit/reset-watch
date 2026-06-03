@@ -1,8 +1,33 @@
 # AI Down Detector — Design
 
 **Date:** 2026-06-03
-**Status:** Approved (brainstorming) — pending spec review
+**Status:** Implemented; revised post-launch (see Revision 1)
 **Supersedes:** the dead "Report Codex degradation" GitHub-issue link
+
+## Revision 1 (2026-06-03, post-launch)
+
+Real usage exposed two problems with the Downdetector-first hero:
+
+1. **No traffic → empty reports → false "normal".** The hero status was derived
+   only from crowdsourced reports. With zero visitors every tool read 0 →
+   "normal", flatly contradicting the scraped pain index (e.g. OpenAI pain 88).
+2. **Wrong asset in front.** The always-populated, valuable signal is the
+   scraped reset-odds / pain forecast, not (yet-nonexistent) user reports.
+
+Changes:
+- **Reset-odds forecast is now the primary hero.** The crowdsourced "Is a tool
+  down right now?" cards + report widget moved to a secondary `#status` section,
+  kept for when traffic arrives.
+- **Honest blended condition** (`blendCondition` in `incident-model.ts`): the
+  live tier is the MAX severity across {report spike, community pain, official
+  incident}. An empty report feed can never pull the condition down to normal;
+  it only *adds* signal when present. A card shows why (e.g. "Flagged by
+  community pain", "Official incident: …").
+- Polish: bar sparkline (reads better than a line for sparse counts), tighter
+  cards, reset-tone hero dot, status pill on the live section.
+
+The rest of this document reflects the original v1 design; the hierarchy and
+status-derivation sections above are superseded by this revision.
 
 ## Summary
 

@@ -6,7 +6,7 @@ import { attribution, buildPredictions, eventPainScore, eventResetProbability, l
 import { IncidentCards } from './IncidentCards'
 import { ReportWidget } from './ReportWidget'
 import { fetchReportStats } from './supabase'
-import { deriveStatus, tierIsWorse, type StatusTier } from './incident-model'
+import { blendCondition, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
@@ -144,19 +144,6 @@ function App() {
     return map
   }, [snapshot])
 
-  // Worst current tier across primary tools, for the hero headline.
-  const overallTier = useMemo<StatusTier>(() => {
-    const byProvider = new Map(reportStats.map((s) => [s.provider, s]))
-    let worst: StatusTier = 'normal'
-    for (const provider of PROVIDERS.filter((p) => p.primary)) {
-      const stat = byProvider.get(provider.id)
-      if (!stat) continue
-      const tier = deriveStatus(stat).tier
-      if (tierIsWorse(tier, worst)) worst = tier
-    }
-    return worst
-  }, [reportStats])
-
   const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
   const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
   const stat = useMemo(() => metrics(events), [events])
@@ -168,12 +155,52 @@ function App() {
   const highFitCount = recentLiveEvents.filter((event) => eventResetProbability(event) >= 58).length
   const socialHotCount = socialSnapshot?.topics.filter((topic) => topic.heat >= 58).length ?? 0
 
-  const heroHeadline =
-    overallTier === 'spike'
-      ? 'Something looks down right now.'
-      : overallTier === 'elevated'
-        ? 'Reports are climbing.'
-        : 'Things look normal right now.'
+  // Pain score per reportable provider, mapped from its company's prediction.
+  const painByProvider = useMemo(() => {
+    const byCompany = new Map(predictions.map((p) => [p.company, p.painScore]))
+    const map: Partial<Record<ProviderId, number>> = {}
+    for (const provider of PROVIDERS) {
+      const pain = byCompany.get(provider.company)
+      if (pain != null) map[provider.id] = pain
+    }
+    return map
+  }, [predictions])
+
+  // Honest live condition for the secondary "is it down" module: blends
+  // reports + pain + official incidents, and never reads "normal" just because
+  // the report feed is empty.
+  const liveCondition = useMemo<StatusTier>(() => {
+    const byProvider = new Map(reportStats.map((s) => [s.provider, s]))
+    let worst: StatusTier = 'normal'
+    for (const provider of PROVIDERS.filter((p) => p.primary)) {
+      const { tier } = blendCondition({
+        stat: byProvider.get(provider.id),
+        pain: painByProvider[provider.id],
+        officialIncident: Boolean(corroboration[provider.id]),
+      })
+      if (tierIsWorse(tier, worst)) worst = tier
+    }
+    return worst
+  }, [reportStats, painByProvider, corroboration])
+
+  // Reset-led hero headline (the always-populated, valuable signal).
+  const resetTone = topResetPrediction ? scoreTone(topResetPrediction.resetScore) : 'low'
+  const heroHeadline = !topResetPrediction
+    ? 'Watching for usage-reset signals.'
+    : topResetPrediction.label === 'hot'
+      ? `${topResetPrediction.companyLabel} is showing strong reset pressure.`
+      : topResetPrediction.label === 'likely'
+        ? `${topResetPrediction.companyLabel} may be heading for a usage reset.`
+        : topResetPrediction.label === 'watch'
+          ? `Watching ${topResetPrediction.companyLabel} for reset signals.`
+          : 'No strong reset signal right now.'
+
+  const liveConditionCopy =
+    liveCondition === 'spike'
+      ? 'A tool is struggling right now'
+      : liveCondition === 'elevated'
+        ? 'Elevated — worth a look'
+        : 'All quiet right now'
 
   return (
     <>
@@ -194,39 +221,41 @@ function App() {
 
       <main id="top">
         <section className="hero">
-          <div className="eyebrow"><span /> Is your AI coding tool down right now?</div>
-          <h1 className="hero-title"><span className={`hero-dot tier-${overallTier}`} aria-hidden="true" />{heroHeadline}</h1>
-          <p className="lede">
-            AI Down Detector crowdsources live reports from developers, then cross-checks them against
-            official status pages — so you can tell a real outage from your own machine.
-          </p>
-
-          <div id="status" className="hero-status">
-            <IncidentCards stats={reportStats} corroboration={corroboration} loading={statsLoading} />
-            <ReportWidget onSubmitted={refreshStats} />
+          <div className="eyebrow"><span /> Usage-reset + pain forecast for AI coding tools</div>
+          <div className="hero-grid">
+            <div>
+              <h1 className="hero-title"><span className={`hero-dot tone-${resetTone}`} aria-hidden="true" />{heroHeadline}</h1>
+              <p className="lede">
+                AI Down Detector forecasts whether AI coding tools are likely to issue a make-good usage reset —
+                and how much pain developers are feeling — from official status and public chatter.
+              </p>
+              <div className="hero-actions">
+                <a href="#predictions">See the forecast</a>
+                <a className="ghost" href="#status">Is a tool down now?</a>
+              </div>
+            </div>
+            <aside className="signal-card dual" aria-label="Reset and pain summary">
+              <p className="card-label">Current read · reset vs pain</p>
+              <div className="readout-grid">
+                <div>
+                  <span>Reset odds</span>
+                  <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
+                  <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
+                </div>
+                <div>
+                  <span>Pain index</span>
+                  <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
+                  <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
+                </div>
+              </div>
+              <div className="mini-stats">
+                <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
+                <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
+                <div><b>{socialHotCount}</b><small>hot topics</small></div>
+              </div>
+              <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
+            </aside>
           </div>
-
-          <aside className="signal-card dual supporting" aria-label="Reset and pain summary">
-            <p className="card-label">Supporting read · reset vs pain</p>
-            <div className="readout-grid">
-              <div>
-                <span>Reset odds</span>
-                <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
-                <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
-              </div>
-              <div>
-                <span>Pain index</span>
-                <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
-                <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
-              </div>
-            </div>
-            <div className="mini-stats">
-              <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
-              <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
-              <div><b>{socialHotCount}</b><small>hot topics</small></div>
-            </div>
-            <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
-          </aside>
 
           <div className="briefing-strip" aria-label="AI Down Detector briefing">
             <article>
@@ -244,6 +273,27 @@ function App() {
               <b>{(snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
               <p>Official status pages and public community chatter are refreshing normally.</p>
             </article>
+          </div>
+        </section>
+
+        <section id="status" className="section">
+          <div className="section-heading">
+            <p className="card-label">Live status</p>
+            <h2>Is a tool down right now?</h2>
+            <p>
+              <span className={`status-pill tier-${liveCondition}`}>{liveConditionCopy}</span>
+              Crowdsourced reports, cross-checked against official status and community pain. It stays quiet
+              until developers start reporting or an official incident lands — so report it if you see it.
+            </p>
+          </div>
+          <div className="hero-status">
+            <IncidentCards
+              stats={reportStats}
+              painByProvider={painByProvider}
+              corroboration={corroboration}
+              loading={statsLoading}
+            />
+            <ReportWidget onSubmitted={refreshStats} />
           </div>
         </section>
 
