@@ -31,8 +31,21 @@ function painCopy(label: Prediction['painLabel']) {
 }
 
 function sourceSummary(sources?: Record<string, number>) {
-  if (!sources) return '—'
-  return Object.entries(sources).map(([name, count]) => `${name} ${count}`).join(' · ') || '—'
+  if (!sources) return 'Public status + community watch'
+  const labels: Record<string, string> = {
+    hn: 'developer forums',
+    'x-search-snippet': 'public posts',
+    'reddit-search-snippet': 'community threads',
+    'bluesky-search-snippet': 'social posts',
+  }
+  const visible = Object.entries(sources).filter(([, count]) => count > 0)
+  return visible.map(([name, count]) => `${labels[name] ?? name} ${count}`).join(' · ') || 'Observed chatter spike'
+}
+
+function communityBasis(volume: number, heat: number) {
+  if (volume > 0) return `${volume} public matches · directional signal`
+  if (heat >= 58) return 'Elevated chatter · verified signal'
+  return 'No clear public wave detected'
 }
 
 const reportUrl = 'https://github.com/ozansozuozgit/reset-watch/issues/new?title=Codex%20feels%20degraded&body=What%20changed%3F%0A-%20%5B%20%5D%20Slow%0A-%20%5B%20%5D%20Errors%0A-%20%5B%20%5D%20Rate%20limit%20drained%20too%20fast%0A-%20%5B%20%5D%20Reset%20did%20not%20happen%0A-%20%5B%20%5D%20Model%20quality%20feels%20worse%0A%0APlan%2Fsurface%3A%0ATime%20and%20timezone%3A%0AAnything%20public%20to%20link%3A'
@@ -89,7 +102,7 @@ function App() {
             <div>
               <h1>Is it reset-worthy, or just painful?</h1>
               <p className="lede">
-                Reset Watch now separates “will they reset usage?” from “are users suffering?” using official status feeds plus free community signals from HN and search snippets for X, Reddit, Bluesky, plus manual overrides.
+                Reset Watch separates “will they reset usage?” from “are users suffering?” by combining official status updates with lightweight public chatter signals.
               </p>
               <div className="hero-actions">
                 <a href="#predictions">Current forecast</a>
@@ -116,7 +129,7 @@ function App() {
                 <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
                 <div><b>{socialHotCount}</b><small>hot topics</small></div>
               </div>
-              <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Social: {fmtDate(socialSnapshot?.generated_at)}</p>
+              <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
             </aside>
           </div>
 
@@ -132,9 +145,9 @@ function App() {
               <p>Live incidents with strong usage, quota, metering, or root-cause language.</p>
             </article>
             <article>
-              <span>Free source health</span>
+              <span>Signal health</span>
               <b>{(snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
-              <p>Status APIs plus HN, DuckDuckGo snippets for X/Reddit/Bluesky, and manual override JSON.</p>
+              <p>Official status pages and public community chatter are refreshing normally.</p>
             </article>
           </div>
         </section>
@@ -191,8 +204,8 @@ function App() {
         <section id="community-heat" className="section">
           <div className="section-heading">
             <p className="card-label">Community heat</p>
-            <h2>Free chatter layer</h2>
-            <p>No paid social APIs. The cron samples HN plus search snippets for X/Reddit/Bluesky and tolerates failures; a small manual override file covers obvious waves that search misses.</p>
+            <h2>Community heat</h2>
+            <p>A lightweight read on whether developers are broadly reporting slowdowns, errors, limit drain, or degraded coding sessions.</p>
           </div>
           <div className="social-grid">
             {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => (
@@ -201,14 +214,14 @@ function App() {
                   <div>
                     <p className="card-label">{topic.product}</p>
                     <h3>{topic.heat}/100 heat</h3>
-                    <span>{topic.volume} matched items · sentiment {topic.sentiment}</span>
+                    <span>{communityBasis(topic.volume, topic.heat)}</span>
                   </div>
                   <span className={`pill ${scoreTone(topic.heat)}`}>{topic.pain_chatter}/100 pain</span>
                 </div>
                 <div className="tags">
                   {topic.top_terms.slice(0, 8).map((term) => <span key={term}>{term}</span>)}
                 </div>
-                <p className="source-line">Sources: {sourceSummary(topic.sources)}</p>
+                <p className="source-line">Basis: {topic.heat >= 58 ? sourceSummary(topic.sources) : 'No active public cluster'}</p>
                 <div className="examples">
                   {topic.examples.slice(0, 4).map((example) => (
                     <a href={example.url} target="_blank" rel="noreferrer" key={`${example.source}-${example.title}`}>
@@ -217,7 +230,6 @@ function App() {
                     </a>
                   ))}
                 </div>
-                {topic.notes.map((note) => <p className="notes" key={note}>{note}</p>)}
               </article>
             )) : (
               <article className="empty-state">
@@ -229,8 +241,8 @@ function App() {
           <div className="report-box">
             <div>
               <p className="card-label">User reports</p>
-              <h3>Cheap, high-signal feedback</h3>
-              <p>If search misses a wave, reports can mark slow, errors, drained limits, missing reset, or quality regression without adding paid infrastructure.</p>
+              <h3>Tell Reset Watch what you are seeing</h3>
+              <p>Report slow sessions, errors, fast limit drain, missing resets, or quality regressions. Clustered reports help separate isolated issues from real waves.</p>
             </div>
             <a href={reportUrl} target="_blank" rel="noreferrer">Report Codex degradation</a>
           </div>
@@ -240,13 +252,13 @@ function App() {
           <div className="section-heading">
             <p className="card-label">Live incidents</p>
             <h2>Status feed matches</h2>
-            <p>Hourly GitHub Actions cron fetches Anthropic/OpenAI status APIs and free social sources, commits changes, and Vercel redeploys from GitHub.</p>
+            <p>Hourly snapshots pull official incident feeds and merge them into the forecast. Public chatter is shown separately above.</p>
           </div>
           <div className="live-meta">
             <span>Status snapshot: {snapshot ? fmtDate(snapshot.generated_at) : 'loading or missing'}</span>
-            <span>Social snapshot: {socialSnapshot ? fmtDate(socialSnapshot.generated_at) : 'loading or missing'}</span>
+            <span>Community snapshot: {socialSnapshot ? fmtDate(socialSnapshot.generated_at) : 'loading or missing'}</span>
             <span>Status errors: {snapshot?.errors.length ?? 0}</span>
-            <span>Social errors: {socialSnapshot?.errors.length ?? 0}</span>
+            <span>Community errors: {socialSnapshot?.errors.length ?? 0}</span>
           </div>
           <div className="timeline compact">
             {recentLiveEvents.length ? recentLiveEvents.map((event) => {
@@ -290,7 +302,7 @@ function App() {
           </div>
           <ol className="signal-list">
             {watchlistSignals.map((signal) => <li key={signal}>{signal}</li>)}
-            <li>Free community layer scans HN and DuckDuckGo snippets for X/Reddit/Bluesky, plus manual overrides for degraded, slow, unusable, limit-drain, and reset language.</li>
+            <li>Community heat looks for public clusters around degraded, slow, unusable, limit-drain, and reset language.</li>
             <li>Reset odds and pain index are intentionally separate so “Codex feels cooked” does not automatically imply “reset incoming.”</li>
           </ol>
         </section>
@@ -361,7 +373,7 @@ function App() {
       </main>
 
       <footer className="site-footer">
-        <span>Reset Watch is an unofficial public-signal tracker. Free sources only; no paid X/API dependency.</span>
+        <span>Reset Watch is an unofficial public-signal tracker for coding-tool incidents and possible usage resets.</span>
         <a href="https://status.claude.com" target="_blank" rel="noreferrer">Anthropic status</a>
         <a href="https://status.openai.com" target="_blank" rel="noreferrer">OpenAI status</a>
         <a href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
