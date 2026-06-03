@@ -173,13 +173,75 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 .site-footer a { color: var(--ink); text-decoration: none; font-weight: 600; }
 .site-footer a:hover { text-decoration: underline; }
 
+/* ── AI Down Detector: live status hero ───────────────────────────── */
+.hero-title { font: 700 clamp(34px, 5vw, 56px)/1.02 'Geist', sans-serif; letter-spacing: -.045em; margin: 14px 0 0; text-wrap: balance; }
+.hero-dot { font-size: .52em; vertical-align: .18em; margin-right: .32em; }
+.hero-status { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; margin-top: 28px; }
+
+.incident-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.incident-card { border: 1px solid var(--border); border-radius: 20px; background: var(--surface); padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+.incident-card.tier-elevated { border-color: rgba(138,97,0,.35); }
+.incident-card.tier-spike { border-color: rgba(159,47,45,.4); }
+
+.ic-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ic-id { display: flex; align-items: center; gap: 10px; }
+.ic-dot { font-size: 14px; line-height: 1; }
+.ic-id h3 { margin: 0; font-size: 20px; letter-spacing: -.03em; }
+.ic-tier { font: 600 11px/1.2 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tier-elevated .ic-tier { color: var(--yellow-text); }
+.tier-spike .ic-tier { color: var(--red-text); }
+.ic-rate { text-align: right; line-height: 1; }
+.ic-rate b { display: block; font: 700 30px/1 'Geist', sans-serif; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.ic-rate small { font: 500 10px 'Geist Mono', monospace; text-transform: uppercase; color: var(--muted-2); letter-spacing: .04em; }
+
+.ic-spark { display: flex; align-items: center; gap: 10px; color: var(--muted-2); }
+.tier-elevated .ic-spark { color: var(--yellow-text); }
+.tier-spike .ic-spark { color: var(--red-text); }
+.spark { width: 120px; height: 28px; flex: 0 0 auto; }
+.spark-empty { border-bottom: 1px dashed var(--border-strong); height: 14px; }
+.ic-24h { font: 500 11px 'Geist Mono', monospace; color: var(--muted); white-space: nowrap; }
+
+.ic-symptoms { display: flex; flex-wrap: wrap; gap: 6px; }
+.ic-symptom { border-radius: 999px; padding: 4px 9px; font: 500 11px 'Geist Mono', monospace; background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); }
+.ic-symptom b { color: var(--text); }
+.ic-quiet { margin: 0; color: var(--muted-2); font-size: 13px; }
+
+.ic-badge { margin: 0; margin-top: auto; font: 500 12px/1.4 'Geist Mono', monospace; padding: 7px 10px; border-radius: 10px; }
+.ic-badge.user-only { background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); }
+.ic-badge.corroborated { background: var(--red-bg); color: var(--red-text); border: 1px solid transparent; }
+
+/* report widget */
+.report-widget { border: 1px solid var(--border-strong); border-radius: 22px; background: linear-gradient(135deg, #fff, #f3f7fb); padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.rw-head h3 { margin: 6px 0 4px; font-size: 22px; letter-spacing: -.035em; }
+.rw-sub { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.rw-field { display: flex; flex-direction: column; gap: 8px; }
+.rw-field > span { font: 600 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.rw-field select { font: 500 14px 'Geist', sans-serif; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: #fff; color: var(--text); }
+.rw-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rw-chip { font: 550 13px 'Geist', sans-serif; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: #fff; color: var(--text); cursor: pointer; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+.rw-chip:hover { transform: translateY(-1px); }
+.rw-chip.on { background: var(--charcoal); color: #fff; border-color: var(--charcoal); }
+.rw-submit { font: 650 14px 'Geist', sans-serif; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--charcoal); background: var(--charcoal); color: #fff; cursor: pointer; transition: transform .15s ease, background .15s ease; }
+.rw-submit:hover:not(:disabled) { transform: translateY(-1px); background: #2b2c27; }
+.rw-submit:disabled { opacity: .45; cursor: not-allowed; }
+.rw-msg { margin: 0; font: 500 13px/1.45 'Geist', sans-serif; padding: 9px 11px; border-radius: 10px; }
+.rw-msg.ok { background: var(--green-bg); color: var(--green-text); }
+.rw-msg.warn { background: var(--yellow-bg); color: var(--yellow-text); }
+.rw-msg.err { background: var(--red-bg); color: var(--red-text); }
+
+.signal-card.supporting { margin-top: 26px; max-width: 560px; background: rgba(255,255,255,.7); }
+.report-cta-line { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
+.report-cta-line a { color: var(--blue-text); font-weight: 600; text-decoration: none; }
+.report-cta-line a:hover { text-decoration: underline; }
+
 @media (max-width: 880px) {
   .site-header { align-items: flex-start; flex-direction: column; }
   nav { width: 100%; overflow-x: auto; border-radius: 14px; }
   main { width: min(100% - 24px, 1120px); padding-top: 18px; }
   .hero { padding-top: 30px; }
-  .hero-grid, .prediction-grid, .split, .section-heading, .event, .timeline.compact .event, .failure-grid, .companies, .briefing-strip, .social-grid, .readout-grid { grid-template-columns: 1fr; }
+  .hero-grid, .prediction-grid, .split, .section-heading, .event, .timeline.compact .event, .failure-grid, .companies, .briefing-strip, .social-grid, .readout-grid, .hero-status, .incident-cards { grid-template-columns: 1fr; }
   .report-box { align-items: stretch; flex-direction: column; }
+  .report-widget { position: static; }
   .event-date { border-right: 0; border-bottom: 1px solid var(--border); }
   .event-title-row { flex-direction: column; }
   .section { padding: 32px 0; }

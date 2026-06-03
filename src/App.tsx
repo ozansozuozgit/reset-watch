@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { companies, events as seedEvents, failurePoints, watchlistSignals } from './data'
 import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction } from './model'
+import { IncidentCards } from './IncidentCards'
+import { ReportWidget } from './ReportWidget'
+import { fetchReportStats } from './supabase'
+import { deriveStatus, TIER_COPY, tierIsWorse, type StatusTier } from './incident-model'
+import { PROVIDERS, type ProviderId, type ReportStat } from './reports'
+
+const STATS_POLL_MS = 45_000
 
 function fmtDate(value?: string) {
   if (!value) return '—'
@@ -91,12 +98,12 @@ function attributionLabel(value: string) {
   return labels[value] ?? value
 }
 
-const reportUrl = 'https://github.com/ozansozuozgit/reset-watch/issues/new?title=Codex%20feels%20degraded&body=What%20changed%3F%0A-%20%5B%20%5D%20Slow%0A-%20%5B%20%5D%20Errors%0A-%20%5B%20%5D%20Rate%20limit%20drained%20too%20fast%0A-%20%5B%20%5D%20Reset%20did%20not%20happen%0A-%20%5B%20%5D%20Model%20quality%20feels%20worse%0A%0APlan%2Fsurface%3A%0ATime%20and%20timezone%3A%0AAnything%20public%20to%20link%3A'
-
 function App() {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null)
   const [resetFeed, setResetFeed] = useState<ResetFeed | null>(null)
   const [socialSnapshot, setSocialSnapshot] = useState<SocialSnapshot | null>(null)
+  const [reportStats, setReportStats] = useState<ReportStat[]>([])
+  const [statsLoading, setStatsLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
@@ -110,6 +117,46 @@ function App() {
     })
   }, [])
 
+  const refreshStats = useCallback(() => {
+    return fetchReportStats().then((stats) => {
+      setReportStats((prev) => (stats.length === 0 && prev.length > 0 ? prev : stats))
+      setStatsLoading(false)
+    })
+  }, [])
+
+  useEffect(() => {
+    refreshStats()
+    const id = setInterval(refreshStats, STATS_POLL_MS)
+    return () => clearInterval(id)
+  }, [refreshStats])
+
+  // Corroboration: an active official incident for a provider's company upgrades
+  // its card from "user-reported only" to "corroborated".
+  const corroboration = useMemo(() => {
+    const map: Partial<Record<ProviderId, string>> = {}
+    if (!snapshot) return map
+    for (const provider of PROVIDERS) {
+      const incident = snapshot.incidents.find(
+        (i) => i.source === provider.company && !i.resolved_at && i.impact && i.impact !== 'none',
+      )
+      if (incident) map[provider.id] = incident.name
+    }
+    return map
+  }, [snapshot])
+
+  // Worst current tier across primary tools, for the hero headline.
+  const overallTier = useMemo<StatusTier>(() => {
+    const byProvider = new Map(reportStats.map((s) => [s.provider, s]))
+    let worst: StatusTier = 'normal'
+    for (const provider of PROVIDERS.filter((p) => p.primary)) {
+      const stat = byProvider.get(provider.id)
+      if (!stat) continue
+      const tier = deriveStatus(stat).tier
+      if (tierIsWorse(tier, worst)) worst = tier
+    }
+    return worst
+  }, [reportStats])
+
   const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
   const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
   const stat = useMemo(() => metrics(events), [events])
@@ -121,62 +168,67 @@ function App() {
   const highFitCount = recentLiveEvents.filter((event) => eventResetProbability(event) >= 58).length
   const socialHotCount = socialSnapshot?.topics.filter((topic) => topic.heat >= 58).length ?? 0
 
+  const heroHeadline =
+    overallTier === 'spike'
+      ? 'Something looks down right now.'
+      : overallTier === 'elevated'
+        ? 'Reports are climbing.'
+        : 'Things look normal right now.'
+
   return (
     <>
-      <a className="skip-link" href="#predictions">Skip to forecast</a>
-      <header className="site-header" aria-label="Reset Watch navigation">
-        <a className="brand" href="#top" aria-label="Reset Watch home">
-          <span className="brand-mark" aria-hidden="true">↻</span>
-          <span>Reset Watch</span>
+      <a className="skip-link" href="#status">Skip to live status</a>
+      <header className="site-header" aria-label="AI Down Detector navigation">
+        <a className="brand" href="#top" aria-label="AI Down Detector home">
+          <span className="brand-mark" aria-hidden="true">◐</span>
+          <span>AI Down Detector</span>
         </a>
         <nav>
+          <a href="#status">Live status</a>
           <a href="#predictions">Forecast</a>
           <a href="#community-heat">Community</a>
           <a href="#live-incidents">Incidents</a>
           <a href="#method">Method</a>
-          <a href="#evidence">Evidence</a>
         </nav>
       </header>
 
       <main id="top">
         <section className="hero">
-          <div className="eyebrow"><span /> Claude Code + Codex usage reset and pain monitor</div>
-          <div className="hero-grid">
-            <div>
-              <h1>Is it reset-worthy, or just painful?</h1>
-              <p className="lede">
-                Reset Watch separates “will they reset usage?” from “are users suffering?” by combining official status updates with lightweight public chatter signals.
-              </p>
-              <div className="hero-actions">
-                <a href="#predictions">Current forecast</a>
-                <a className="ghost" href="#community-heat">Community heat</a>
-                <a className="ghost" href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
-              </div>
-            </div>
-            <aside className="signal-card dual" aria-label="Current reset and pain summary">
-              <p className="card-label">Current read</p>
-              <div className="readout-grid">
-                <div>
-                  <span>Reset odds</span>
-                  <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
-                  <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
-                </div>
-                <div>
-                  <span>Pain index</span>
-                  <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
-                  <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
-                </div>
-              </div>
-              <div className="mini-stats">
-                <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
-                <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
-                <div><b>{socialHotCount}</b><small>hot topics</small></div>
-              </div>
-              <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
-            </aside>
+          <div className="eyebrow"><span /> Is your AI coding tool down right now?</div>
+          <h1 className="hero-title"><span className="hero-dot" aria-hidden="true">{TIER_COPY[overallTier].dot}</span>{heroHeadline}</h1>
+          <p className="lede">
+            AI Down Detector crowdsources live reports from developers, then cross-checks them against
+            official status pages — so you can tell a real outage from your own machine.
+          </p>
+
+          <div id="status" className="hero-status">
+            <IncidentCards stats={reportStats} corroboration={corroboration} loading={statsLoading} />
+            <ReportWidget onSubmitted={refreshStats} />
           </div>
 
-          <div className="briefing-strip" aria-label="Reset Watch briefing">
+          <aside className="signal-card dual supporting" aria-label="Reset and pain summary">
+            <p className="card-label">Supporting read · reset vs pain</p>
+            <div className="readout-grid">
+              <div>
+                <span>Reset odds</span>
+                <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
+                <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
+              </div>
+              <div>
+                <span>Pain index</span>
+                <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
+                <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
+              </div>
+            </div>
+            <div className="mini-stats">
+              <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
+              <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
+              <div><b>{socialHotCount}</b><small>hot topics</small></div>
+            </div>
+            <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
+          </aside>
+
+          <div className="briefing-strip" aria-label="AI Down Detector briefing">
             <article>
               <span>Latest match</span>
               <b>{latestIncident ? latestIncident.companyLabel : 'No live match yet'}</b>
@@ -281,14 +333,9 @@ function App() {
               </article>
             )}
           </div>
-          <div className="report-box">
-            <div>
-              <p className="card-label">User reports</p>
-              <h3>Tell Reset Watch what you are seeing</h3>
-              <p>Report slow sessions, errors, fast limit drain, missing resets, or quality regressions. Clustered reports help separate isolated issues from real waves.</p>
-            </div>
-            <a href={reportUrl} target="_blank" rel="noreferrer">Report Codex degradation</a>
-          </div>
+          <p className="report-cta-line">
+            Seeing it yourself? <a href="#status">Report it at the top</a> — your one-tap reports drive the live status above.
+          </p>
         </section>
 
         <section id="live-incidents" className="section">
@@ -340,7 +387,7 @@ function App() {
         <section id="method" className="section split">
           <div>
             <p className="card-label">Method</p>
-            <h2>What Reset Watch looks for</h2>
+            <h2>What AI Down Detector looks for</h2>
             <p className="muted">The strongest reset trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak reset signals but strong pain signals.</p>
           </div>
           <ol className="signal-list">
@@ -416,10 +463,10 @@ function App() {
       </main>
 
       <footer className="site-footer">
-        <span>Reset Watch is an unofficial public-signal tracker for coding-tool incidents and possible usage resets.</span>
+        <span>AI Down Detector is an unofficial, community-powered status tracker for AI coding tools. Reports are crowdsourced and unverified.</span>
         <a href="https://status.claude.com" target="_blank" rel="noreferrer">Anthropic status</a>
         <a href="https://status.openai.com" target="_blank" rel="noreferrer">OpenAI status</a>
-        <a href={reportUrl} target="_blank" rel="noreferrer">Report degradation</a>
+        <a href="#status">Report a problem</a>
       </footer>
     </>
   )
