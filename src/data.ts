@@ -18,6 +18,10 @@ export type Event = {
   resetIssued: boolean
   resetAt?: string
   resetScope?: string
+  // Confidence of the matched reset announcement, independent of the incident's
+  // own `evidence` (live status events are always `official` for the incident,
+  // but the reset that follows can be community/inferred).
+  resetConfidence?: EvidenceStrength
   evidence: EvidenceStrength
   sourceLabel: string
   sourceUrl?: string

@@ -1,4 +1,4 @@
-import type { CompanyId, Event } from './data'
+import type { CompanyId, EvidenceStrength, Event } from './data'
 import { socialTopicForCompany, type SocialSnapshot, type SocialTopic } from './live'
 
 export type Prediction = {
@@ -15,6 +15,81 @@ export type Prediction = {
   painDrivers: string[]
   socialTopic?: SocialTopic
   matchedEvents: Event[]
+  // When a reset has already landed, the forecast stops predicting and reports
+  // it as confirmed instead — otherwise the card shows a stale "likely reset"
+  // for a thing that already happened.
+  resetConfirmed: boolean
+  resetConfirmedAt?: string
+  resetConfirmedScope?: string
+  resetConfirmedSource?: string
+  resetConfirmedConfidence?: EvidenceStrength
+}
+
+// How long a reset stays "freshly confirmed" before the card returns to its
+// normal predictive read.
+export const RESET_FRESH_HOURS = 72
+// How many "my limits just reset" reports (in the last hour) it takes to call a
+// community-confirmed reset on their own, with no curated announcement.
+export const COMMUNITY_RESET_THRESHOLD = 3
+
+const CONFIDENCE_RANK: Record<EvidenceStrength, number> = {
+  official: 4,
+  employee: 3,
+  community: 2,
+  inferred: 1,
+}
+
+export type ResetSignal = { communityResetReports?: number }
+
+export type ConfirmedReset = {
+  at: string
+  scope?: string
+  source: string
+  confidence: EvidenceStrength
+}
+
+// Decide whether a reset has actually happened for a company, from two sources:
+// (1) a fresh curated/announced reset matched to a recent incident, and
+// (2) a cluster of crowdsourced "my limits just reset" reports. The strongest
+// available confidence wins.
+export function detectConfirmedReset(
+  recent: Event[],
+  signal?: ResetSignal,
+  now: string = new Date().toISOString(),
+): ConfirmedReset | null {
+  const nowMs = new Date(now).getTime()
+  const freshMs = RESET_FRESH_HOURS * 3_600_000
+  const candidates: ConfirmedReset[] = []
+
+  for (const event of recent) {
+    if (!event.resetIssued || !event.resetAt) continue
+    const ageMs = nowMs - new Date(event.resetAt).getTime()
+    // Within the freshness window and not implausibly in the future.
+    if (ageMs < -3_600_000 || ageMs > freshMs) continue
+    candidates.push({
+      at: event.resetAt,
+      scope: event.resetScope,
+      source: `${event.companyLabel} status / announcement`,
+      confidence: event.resetConfidence ?? event.evidence,
+    })
+  }
+
+  const communityReports = signal?.communityResetReports ?? 0
+  if (communityReports >= COMMUNITY_RESET_THRESHOLD) {
+    candidates.push({
+      at: now,
+      scope: `${communityReports} crowdsourced reset reports in the last hour`,
+      source: 'Crowdsourced reports',
+      confidence: 'community',
+    })
+  }
+
+  if (!candidates.length) return null
+  return candidates.sort(
+    (a, b) =>
+      CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence] ||
+      new Date(b.at).getTime() - new Date(a.at).getTime(),
+  )[0]
 }
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value))
@@ -97,12 +172,18 @@ function companyPainScore(recent: Event[], socialTopic?: SocialTopic) {
   return Math.round(clamp(officialPain * 0.38 + avgPain * 0.17 + socialHeat * 0.25 + socialPain * 0.20))
 }
 
-export function buildPredictions(events: Event[], social?: SocialSnapshot | null): Prediction[] {
+export function buildPredictions(
+  events: Event[],
+  social?: SocialSnapshot | null,
+  resetSignals?: Partial<Record<CompanyId, ResetSignal>>,
+  now: string = new Date().toISOString(),
+): Prediction[] {
   const companies: CompanyId[] = ['anthropic', 'openai']
   return companies.map((company) => {
     const companyEvents = events.filter((event) => event.company === company)
     const recent = companyEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 4)
     const socialTopic = socialTopicForCompany(social, company)
+    const confirmedReset = detectConfirmedReset(recent, resetSignals?.[company], now)
     const resetScore = Math.round(clamp(companyBaseScore(recent) + (socialTopic?.reset_chatter ?? 0) * 0.1))
     const painScore = companyPainScore(recent, socialTopic)
     const label = classify(resetScore)
@@ -151,6 +232,11 @@ export function buildPredictions(events: Event[], social?: SocialSnapshot | null
       painDrivers: painDrivers.length ? painDrivers.slice(0, 5) : ['No strong current pain drivers.'],
       socialTopic,
       matchedEvents: recent,
+      resetConfirmed: Boolean(confirmedReset),
+      resetConfirmedAt: confirmedReset?.at,
+      resetConfirmedScope: confirmedReset?.scope,
+      resetConfirmedSource: confirmedReset?.source,
+      resetConfirmedConfidence: confirmedReset?.confidence,
     }
   })
 }

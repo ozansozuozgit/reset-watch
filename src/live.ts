@@ -144,6 +144,7 @@ export function statusIncidentToEvent(incident: StatusIncident, resets: ResetAnn
     resetIssued: Boolean(reset),
     resetAt: reset?.announced_at,
     resetScope: reset?.scope,
+    resetConfidence: reset?.confidence,
     evidence: 'official',
     sourceLabel: `${sourceLabel(incident.source)} status page`,
     sourceUrl: incident.source === 'openai' ? 'https://status.openai.com' : 'https://status.claude.com',

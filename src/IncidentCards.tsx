@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { blendCondition, TIER_COPY, type ConditionDriver } from './incident-model'
-import { ONE_TAP_SYMPTOM, PROVIDERS, type ProviderId, type ReportStat } from './reports'
+import { ONE_TAP_SYMPTOM, PROVIDERS, RESET_SYMPTOM, type ProviderId, type ReportStat, type SymptomId } from './reports'
 import { isConfigured, submitReport } from './supabase'
 
 const EMPTY_STAT = (provider: ProviderId): ReportStat => ({
@@ -60,18 +60,44 @@ type Props = {
 export function IncidentCards({ stats, painByProvider, corroboration, loading, onSubmitted }: Props) {
   const statByProvider = new Map(stats.map((s) => [s.provider, s]))
   const [reportState, setReportState] = useState<Partial<Record<ProviderId, ReportState>>>({})
+  const [resetState, setResetState] = useState<Partial<Record<ProviderId, ReportState>>>({})
 
-  async function report(provider: ProviderId) {
-    if (reportState[provider]?.kind === 'sending') return
-    setReportState((prev) => ({ ...prev, [provider]: { kind: 'sending' } }))
-    const result = await submitReport(provider, ONE_TAP_SYMPTOM)
+  async function send(
+    provider: ProviderId,
+    symptom: SymptomId,
+    setState: React.Dispatch<React.SetStateAction<Partial<Record<ProviderId, ReportState>>>>,
+  ) {
+    setState((prev) => ({ ...prev, [provider]: { kind: 'sending' } }))
+    const result = await submitReport(provider, symptom)
     if (result.ok) {
-      setReportState((prev) => ({ ...prev, [provider]: { kind: 'done' } }))
+      setState((prev) => ({ ...prev, [provider]: { kind: 'done' } }))
       onSubmitted()
     } else if (result.error === 'cooldown') {
-      setReportState((prev) => ({ ...prev, [provider]: { kind: 'cooldown' } }))
+      setState((prev) => ({ ...prev, [provider]: { kind: 'cooldown' } }))
     } else {
-      setReportState((prev) => ({ ...prev, [provider]: { kind: 'error' } }))
+      setState((prev) => ({ ...prev, [provider]: { kind: 'error' } }))
+    }
+  }
+
+  function report(provider: ProviderId) {
+    if (reportState[provider]?.kind === 'sending') return
+    return send(provider, ONE_TAP_SYMPTOM, setReportState)
+  }
+
+  // Tier 1 reset detector: "my limits just reset" — the positive signal that
+  // flips the forecast from "likely" to "confirmed".
+  function reportReset(provider: ProviderId) {
+    if (resetState[provider]?.kind === 'sending') return
+    return send(provider, RESET_SYMPTOM, setResetState)
+  }
+
+  function resetLabel(state: ReportState | undefined): string {
+    switch (state?.kind) {
+      case 'sending': return 'Sending…'
+      case 'done': return 'Reset logged ✓'
+      case 'cooldown': return 'Already logged · try later'
+      case 'error': return 'Try again'
+      default: return 'My limits just reset ✅'
     }
   }
 
@@ -99,6 +125,9 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
         const note = driverNote(condition.driver, incidentName)
         const rState = reportState[provider.id]
         const done = rState?.kind === 'done' || rState?.kind === 'cooldown'
+        const resetRState = resetState[provider.id]
+        const resetDone = resetRState?.kind === 'done' || resetRState?.kind === 'cooldown'
+        const resetReports = Number(stat.symptom_breakdown?.[RESET_SYMPTOM] ?? 0)
 
         return (
           <article className={`incident-card tier-${tier}`} key={provider.id}>
@@ -131,6 +160,19 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
             >
               {reportLabel(rState)}
             </button>
+
+            <button
+              type="button"
+              className="ic-report reset"
+              disabled={!isConfigured || resetRState?.kind === 'sending' || resetDone}
+              onClick={() => reportReset(provider.id)}
+            >
+              {resetLabel(resetRState)}
+            </button>
+
+            {resetReports > 0 && (
+              <p className="ic-badge reset-confirmed">{resetReports} reset {resetReports === 1 ? 'report' : 'reports'} in the last hour</p>
+            )}
 
             {incidentName && <p className="ic-badge corroborated">Cross-checked: {incidentName}</p>}
           </article>

@@ -7,10 +7,46 @@ const sources = [
 
 const keywords = /codex|claude code|rate limit|usage limit|quota|meter|compaction|cache|consumed|reset/i
 
+// Tier 3 reset auto-detection: explicit "we reset / restored / credited" language
+// that is also about usage/limits. Both must match to avoid false positives like
+// "reset your password" or "service restored".
+const resetLanguage = /\b(reset|restored|credited back|credited|re-?credited|make[- ]good|made good|refunded)\b/i
+const usageContext = /\b(limit|limits|quota|quotas|usage|rate|allowance|allowances|credits?)\b/i
+
+function inferProduct(source, name, components) {
+  const text = `${name} ${components.join(' ')}`.toLowerCase()
+  if (text.includes('codex')) return 'Codex'
+  if (text.includes('claude code')) return 'Claude Code'
+  if (text.includes('claude')) return 'Claude Code / Claude API'
+  return source === 'openai' ? 'OpenAI coding surfaces' : 'Claude surfaces'
+}
+
 async function fetchJson(name, url) {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   if (!response.ok) throw new Error(`${name} ${response.status} ${response.statusText}`)
   return response.json()
+}
+
+// Scan an incident's updates for an explicit reset announcement. Returns the
+// first qualifying update as a low-confidence (`inferred`) reset entry, or null.
+function detectReset(source, incident) {
+  const components = incident.components?.map((component) => component.name) ?? []
+  for (const update of incident.incident_updates ?? []) {
+    const body = update.body ?? ''
+    if (resetLanguage.test(body) && usageContext.test(body)) {
+      return {
+        id: `auto-${source}-${incident.id}`,
+        source,
+        product: inferProduct(source, incident.name, components),
+        announced_at: update.created_at ?? incident.resolved_at ?? incident.created_at,
+        scope: body.replace(/\s+/g, ' ').trim().slice(0, 200),
+        title: incident.name,
+        confidence: 'inferred',
+        matched_incident_keywords: ['auto-detected reset language'],
+      }
+    }
+  }
+  return null
 }
 
 function summarizeIncident(source, incident) {
@@ -43,11 +79,17 @@ const snapshot = {
   errors: [],
 }
 
+const autoResets = []
+
 for (const [name, url] of sources) {
   try {
     const data = await fetchJson(name, url)
     snapshot.sources.push({ name, url, page: data.page?.name })
-    snapshot.incidents.push(...(data.incidents ?? []).map((incident) => summarizeIncident(name, incident)))
+    for (const incident of data.incidents ?? []) {
+      snapshot.incidents.push(summarizeIncident(name, incident))
+      const reset = detectReset(name, incident)
+      if (reset) autoResets.push(reset)
+    }
   } catch (error) {
     snapshot.errors.push({ name, url, message: error instanceof Error ? error.message : String(error) })
   }
@@ -60,6 +102,16 @@ snapshot.incidents = snapshot.incidents
 
 await writeFile('public/data/status-snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`)
 console.log(`Wrote ${snapshot.incidents.length} matched incidents to public/data/status-snapshot.json`)
+
+const autoResetFeed = {
+  generated_at: snapshot.generated_at,
+  resets: autoResets
+    .sort((a, b) => new Date(b.announced_at ?? 0) - new Date(a.announced_at ?? 0))
+    .slice(0, 25),
+}
+await writeFile('public/data/auto-resets.json', `${JSON.stringify(autoResetFeed, null, 2)}\n`)
+console.log(`Wrote ${autoResetFeed.resets.length} auto-detected reset signals to public/data/auto-resets.json`)
+
 if (snapshot.errors.length) {
   console.warn('Fetch errors:', snapshot.errors)
 }

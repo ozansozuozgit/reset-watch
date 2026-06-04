@@ -11,10 +11,15 @@ export type ProviderId =
   | 'openai-api'
   | 'claude-api'
 
-export type SymptomId = 'slow' | 'errors' | 'limits' | 'no-reset' | 'quality' | 'down'
+export type SymptomId = 'slow' | 'errors' | 'limits' | 'no-reset' | 'quality' | 'down' | 'reset'
 
 // One-tap reporting: a single "I'm having a problem" signal, no symptom picker.
 export const ONE_TAP_SYMPTOM: SymptomId = 'down'
+
+// The positive counterpart: "my usage limits just reset". This is the real-time,
+// crowdsourced detector for a make-good reset — users visually see their quota
+// refill and tap it. A cluster of these flips the forecast to "reset confirmed".
+export const RESET_SYMPTOM: SymptomId = 'reset'
 
 export type ProviderDef = {
   id: ProviderId
@@ -39,6 +44,7 @@ export const SYMPTOMS: { id: SymptomId; label: string }[] = [
   { id: 'limits', label: 'Limits drained' },
   { id: 'no-reset', label: 'No reset' },
   { id: 'quality', label: 'Quality worse' },
+  { id: 'reset', label: 'Limits reset ✅' },
 ]
 
 export const PROVIDER_IDS = PROVIDERS.map((p) => p.id)

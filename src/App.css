@@ -105,6 +105,11 @@ h2 { font-size: clamp(30px, 3vw, 44px); line-height: 1.05; letter-spacing: -.045
 .prediction { border: 1px solid var(--border); padding: 22px; background: var(--surface); border-radius: 20px; box-shadow: 0 10px 36px rgba(56,50,39,.045); }
 .prediction.hot { border-color: rgba(159,47,45,.22); }
 .prediction.likely { border-color: rgba(138,97,0,.24); }
+.prediction.confirmed { border-color: rgba(52,101,56,.45); background: var(--green-bg); box-shadow: 0 10px 36px rgba(52,101,56,.10); }
+.prediction.confirmed h3 { color: var(--green-text); }
+.reset-confirmed-mark { width: 78px; height: 78px; border-radius: 50%; display: grid; place-content: center; flex: 0 0 auto; background: var(--green-text); color: #fff; font-size: 34px; font-weight: 700; line-height: 1; }
+.reset-confirmed-scope { margin: 14px 0 0; font: 500 13px/1.5 'Geist', sans-serif; color: var(--green-text); }
+.confirmed-readout { color: var(--green-text); }
 .prediction-top { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
 .prediction h3 { font-size: 32px; line-height: .95; letter-spacing: -.05em; margin: 8px 0 4px; font-weight: 700; text-transform: capitalize; }
 .prediction-top span { color: var(--muted); font-size: 13px; }
@@ -183,6 +188,7 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 .hero-dot.tone-watch { background: var(--blue-text); box-shadow: 0 0 0 .12em rgba(31,95,143,.16); }
 .hero-dot.tone-likely { background: var(--yellow-text); box-shadow: 0 0 0 .12em rgba(138,97,0,.16); }
 .hero-dot.tone-hot { background: var(--red-text); box-shadow: 0 0 0 .12em rgba(159,47,45,.18); }
+.hero-dot.tone-confirmed { background: var(--green-text); box-shadow: 0 0 0 .12em rgba(52,101,56,.20); }
 .hero-status { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; margin-top: 28px; }
 
 .incident-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -227,11 +233,14 @@ code { background: #eeece6; border: 1px solid var(--border); border-radius: 5px;
 
 .ic-badge { margin: 0; font: 500 12px/1.4 'Geist Mono', monospace; padding: 7px 10px; border-radius: 10px; }
 .ic-badge.corroborated { background: var(--red-bg); color: var(--red-text); border: 1px solid transparent; }
+.ic-badge.reset-confirmed { background: var(--green-bg); color: var(--green-text); border: 1px solid transparent; }
 
 /* one-tap report button on each live-status card */
 .ic-report { margin-top: auto; width: 100%; font: 650 13px 'Geist', sans-serif; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--charcoal); background: var(--charcoal); color: #fff; cursor: pointer; transition: transform .15s ease, background .15s ease; }
 .ic-report:hover:not(:disabled) { transform: translateY(-1px); background: #2b2c27; }
 .ic-report:disabled { opacity: .55; cursor: default; }
+.ic-report.reset { margin-top: 8px; background: transparent; color: var(--green-text); border-color: rgba(52,101,56,.4); }
+.ic-report.reset:hover:not(:disabled) { background: var(--green-bg); }
 .report-foot { margin: 16px 0 0; color: var(--muted-2); font: 500 13px 'Geist Mono', monospace; }
 
 .report-cta-line { margin: 16px 0 0; color: var(--muted); font-size: 14px; }

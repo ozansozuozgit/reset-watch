@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { companies, events as seedEvents, failurePoints, watchlistSignals } from './data'
+import { companies, events as seedEvents, failurePoints, watchlistSignals, type CompanyId } from './data'
 import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
-import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction } from './model'
+import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction, type ResetSignal } from './model'
 import { IncidentCards } from './IncidentCards'
 import { fetchReportStats } from './supabase'
 import { blendCondition, tierIsWorse, type StatusTier } from './incident-model'
-import { PROVIDERS, type ProviderId, type ReportStat } from './reports'
+import { PROVIDERS, providerById, RESET_SYMPTOM, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
 
@@ -20,6 +20,29 @@ function scoreTone(score: number) {
   if (score >= 58) return 'likely'
   if (score >= 35) return 'watch'
   return 'low'
+}
+
+// Human "~15 min ago" for a confirmed reset timestamp.
+function timeAgo(value?: string) {
+  if (!value) return ''
+  const ms = Date.now() - new Date(value).getTime()
+  if (ms < 0) return 'just now'
+  const mins = Math.round(ms / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `~${mins} min ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return `~${hours}h ago`
+  return `~${Math.round(hours / 24)}d ago`
+}
+
+function confidenceLabel(confidence?: Prediction['resetConfirmedConfidence']) {
+  switch (confidence) {
+    case 'official': return 'official confirmation'
+    case 'employee': return 'employee confirmation'
+    case 'community': return 'community-confirmed'
+    case 'inferred': return 'auto-detected (status page)'
+    default: return 'confirmed'
+  }
 }
 
 function confidenceCopy(label: Prediction['label']) {
@@ -109,9 +132,20 @@ function App() {
       loadJson<StatusSnapshot>('/data/status-snapshot.json'),
       loadJson<ResetFeed>('/data/resets.json'),
       loadJson<SocialSnapshot>('/data/social-snapshot.json'),
-    ]).then(([statusSnapshot, resets, social]) => {
+      // Tier 3: reset language auto-detected from status-page incident updates
+      // by the hourly cron. Lower confidence (`inferred`); merged with the
+      // curated feed so it can light up the forecast without clobbering it.
+      loadJson<ResetFeed>('/data/auto-resets.json'),
+    ]).then(([statusSnapshot, resets, social, autoResets]) => {
       setSnapshot(statusSnapshot)
-      setResetFeed(resets)
+      const merged: ResetFeed | null =
+        resets || autoResets
+          ? {
+              generated_at: autoResets?.generated_at ?? resets?.generated_at ?? '',
+              resets: [...(resets?.resets ?? []), ...(autoResets?.resets ?? [])],
+            }
+          : null
+      setResetFeed(merged)
       setSocialSnapshot(social)
     })
   }, [])
@@ -146,10 +180,32 @@ function App() {
   const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
   const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
   const stat = useMemo(() => metrics(events), [events])
-  const predictions = useMemo(() => buildPredictions(events, socialSnapshot), [events, socialSnapshot])
+
+  // Tier 1 detector: sum the crowdsourced "my limits just reset" reports (last
+  // hour) per company, so a cluster can flip its forecast to confirmed.
+  const resetSignals = useMemo(() => {
+    const byCompany: Partial<Record<CompanyId, ResetSignal>> = {}
+    for (const s of reportStats) {
+      const count = Number(s.symptom_breakdown?.[RESET_SYMPTOM] ?? 0)
+      if (!count) continue
+      const company = providerById(s.provider)?.company
+      if (!company) continue
+      byCompany[company] = { communityResetReports: (byCompany[company]?.communityResetReports ?? 0) + count }
+    }
+    return byCompany
+  }, [reportStats])
+
+  const predictions = useMemo(
+    () => buildPredictions(events, socialSnapshot, resetSignals),
+    [events, socialSnapshot, resetSignals],
+  )
   const recentLiveEvents = liveEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 8)
   const topResetPrediction = predictions.slice().sort((a, b) => b.resetScore - a.resetScore)[0]
   const topPainPrediction = predictions.slice().sort((a, b) => b.painScore - a.painScore)[0]
+  // A confirmed reset takes over the hero from the predictive read — most recent first.
+  const confirmedPrediction = predictions
+    .filter((p) => p.resetConfirmed)
+    .sort((a, b) => +new Date(b.resetConfirmedAt ?? 0) - +new Date(a.resetConfirmedAt ?? 0))[0]
   const latestIncident = recentLiveEvents[0]
   const highFitCount = recentLiveEvents.filter((event) => eventResetProbability(event) >= 58).length
   const socialHotCount = socialSnapshot?.topics.filter((topic) => topic.heat >= 58).length ?? 0
@@ -182,17 +238,21 @@ function App() {
     return worst
   }, [reportStats, painByProvider, corroboration])
 
-  // Reset-led hero headline (the always-populated, valuable signal).
-  const resetTone = topResetPrediction ? scoreTone(topResetPrediction.resetScore) : 'low'
-  const heroHeadline = !topResetPrediction
-    ? 'Watching for usage-reset signals.'
-    : topResetPrediction.label === 'hot'
-      ? `${topResetPrediction.companyLabel} is showing strong reset pressure.`
-      : topResetPrediction.label === 'likely'
-        ? `${topResetPrediction.companyLabel} may be heading for a usage reset.`
-        : topResetPrediction.label === 'watch'
-          ? `Watching ${topResetPrediction.companyLabel} for reset signals.`
-          : 'No strong reset signal right now.'
+  // Reset-led hero headline (the always-populated, valuable signal). A confirmed
+  // reset overrides the predictive read so visitors don't see "likely" for a
+  // reset that already happened.
+  const resetTone = confirmedPrediction ? 'confirmed' : topResetPrediction ? scoreTone(topResetPrediction.resetScore) : 'low'
+  const heroHeadline = confirmedPrediction
+    ? `${confirmedPrediction.companyLabel} just issued a usage reset.`
+    : !topResetPrediction
+      ? 'Watching for usage-reset signals.'
+      : topResetPrediction.label === 'hot'
+        ? `${topResetPrediction.companyLabel} is showing strong reset pressure.`
+        : topResetPrediction.label === 'likely'
+          ? `${topResetPrediction.companyLabel} may be heading for a usage reset.`
+          : topResetPrediction.label === 'watch'
+            ? `Watching ${topResetPrediction.companyLabel} for reset signals.`
+            : 'No strong reset signal right now.'
 
   const liveConditionCopy =
     liveCondition === 'spike'
@@ -237,9 +297,15 @@ function App() {
               <p className="card-label">Current read · reset vs pain</p>
               <div className="readout-grid">
                 <div>
-                  <span>Reset odds</span>
-                  <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
-                  <em>{topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
+                  <span>{confirmedPrediction ? 'Reset status' : 'Reset odds'}</span>
+                  {confirmedPrediction ? (
+                    <strong className="confirmed-readout">Reset ✓</strong>
+                  ) : (
+                    <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
+                  )}
+                  <em>{confirmedPrediction
+                    ? `${confirmedPrediction.companyLabel}: limits reset ${timeAgo(confirmedPrediction.resetConfirmedAt)} (${confidenceLabel(confirmedPrediction.resetConfirmedConfidence)}).`
+                    : topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
                 </div>
                 <div>
                   <span>Pain index</span>
@@ -303,25 +369,36 @@ function App() {
           </div>
           <div className="prediction-grid">
             {predictions.map((prediction) => (
-              <article className={`prediction ${prediction.label}`} key={prediction.company}>
+              <article className={`prediction ${prediction.resetConfirmed ? 'confirmed' : prediction.label}`} key={prediction.company}>
                 <div className="prediction-top">
                   <div>
                     <p className="card-label">{prediction.companyLabel}</p>
-                    <h3>{prediction.label}</h3>
-                    <span>{confidenceCopy(prediction.label)}</span>
+                    <h3>{prediction.resetConfirmed ? 'reset confirmed' : prediction.label}</h3>
+                    <span>{prediction.resetConfirmed
+                      ? `limits reset ${timeAgo(prediction.resetConfirmedAt)} · ${confidenceLabel(prediction.resetConfirmedConfidence)}`
+                      : confidenceCopy(prediction.label)}</span>
                   </div>
                   <div className="score-pair">
-                    <div className="score-ring" style={{ '--score': `${prediction.resetScore}%` } as React.CSSProperties}>
-                      <b>{prediction.resetScore}</b>
-                      <span>reset</span>
-                    </div>
+                    {prediction.resetConfirmed ? (
+                      <div className="reset-confirmed-mark" aria-label="Reset confirmed">✓</div>
+                    ) : (
+                      <div className="score-ring" style={{ '--score': `${prediction.resetScore}%` } as React.CSSProperties}>
+                        <b>{prediction.resetScore}</b>
+                        <span>reset</span>
+                      </div>
+                    )}
                     <div className="score-ring pain" style={{ '--score': `${prediction.painScore}%` } as React.CSSProperties}>
                       <b>{prediction.painScore}</b>
                       <span>pain</span>
                     </div>
                   </div>
                 </div>
-                <p className="window">{prediction.nextWindow}</p>
+                {prediction.resetConfirmed && prediction.resetConfirmedScope && (
+                  <p className="reset-confirmed-scope">{prediction.resetConfirmedScope}. Source: {prediction.resetConfirmedSource}.</p>
+                )}
+                <p className="window">{prediction.resetConfirmed
+                  ? 'Reset already issued — watching for the next cycle.'
+                  : prediction.nextWindow}</p>
                 <div className="score-explainer">
                   <span className={`pill ${scoreTone(prediction.resetScore)}`}>reset odds {prediction.resetScore}/100</span>
                   <span className={`pill ${scoreTone(prediction.painScore)}`}>pain index {prediction.painScore}/100</span>
@@ -522,6 +599,7 @@ function App() {
         <a href="https://status.claude.com" target="_blank" rel="noreferrer">Anthropic status</a>
         <a href="https://status.openai.com" target="_blank" rel="noreferrer">OpenAI status</a>
         <a href="#status">Report a problem</a>
+        <a href="https://github.com/ozansozuozgit/reset-watch" target="_blank" rel="noreferrer">Contribute on GitHub</a>
       </footer>
     </>
   )

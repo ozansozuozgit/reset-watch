@@ -1,6 +1,16 @@
 {
-  "generated_at": "2026-06-01T00:00:00.000Z",
+  "generated_at": "2026-06-03T20:00:00.000Z",
   "resets": [
+    {
+      "id": "codex-reset-2026-06-03",
+      "source": "openai",
+      "product": "Codex",
+      "announced_at": "2026-06-03T19:45:00Z",
+      "scope": "Codex / paid ChatGPT plans; usage limits reset after the June 3 elevated-error incident",
+      "title": "Codex usage limits reset following June 3 incident",
+      "confidence": "community",
+      "matched_incident_keywords": ["Codex", "usage limits", "reset", "rate limits"]
+    },
     {
       "id": "claude-cache-bug-2026-02-reset",
       "source": "anthropic",
