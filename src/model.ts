@@ -32,6 +32,26 @@ export const RESET_FRESH_HOURS = 24
 // community-confirmed reset on their own, with no curated announcement.
 export const COMMUNITY_RESET_THRESHOLD = 3
 
+// While a reset is freshly confirmed, knock the pain score down. The keyword
+// scanner lags real sentiment after a make-good (relief posts are quieter than
+// outrage, positive terms barely offset, and the search window still holds days
+// of pre-reset anger). A confirmed reset is real evidence the mood is turning
+// that the scanner can't see yet, so we discount pain — more when the reset is
+// strongly attested. Self-clears when the reset ages out of RESET_FRESH_HOURS.
+const RESET_PAIN_RELIEF: Record<EvidenceStrength, number> = {
+  official: 24,
+  employee: 22,
+  community: 14,
+  inferred: 10,
+}
+
+// Apply post-reset relief to a raw pain score. Returns the unchanged score when
+// there is no fresh reset. Never drops below 0.
+export function relievedPain(pain: number, confirmedReset: ConfirmedReset | null): number {
+  if (!confirmedReset) return pain
+  return Math.max(0, Math.round(pain - RESET_PAIN_RELIEF[confirmedReset.confidence]))
+}
+
 const CONFIDENCE_RANK: Record<EvidenceStrength, number> = {
   official: 4,
   employee: 3,
@@ -185,7 +205,8 @@ export function buildPredictions(
     const socialTopic = socialTopicForCompany(social, company)
     const confirmedReset = detectConfirmedReset(recent, resetSignals?.[company], now)
     const resetScore = Math.round(clamp(companyBaseScore(recent) + (socialTopic?.reset_chatter ?? 0) * 0.1))
-    const painScore = companyPainScore(recent, socialTopic)
+    const rawPain = companyPainScore(recent, socialTopic)
+    const painScore = relievedPain(rawPain, confirmedReset)
     const label = classify(resetScore)
     const drivers = recent.flatMap((event) => {
       const d: string[] = []
@@ -209,6 +230,9 @@ export function buildPredictions(
     })
     if ((socialTopic?.heat ?? 0) >= 45) {
       painDrivers.push(`${socialTopic?.product}: community heat ${socialTopic?.heat}/100 from public chatter`)
+    }
+    if (confirmedReset && rawPain > painScore) {
+      painDrivers.push(`Pain discounted ${rawPain - painScore} pts: reset confirmed, sentiment expected to ease`)
     }
 
     const blockers = [

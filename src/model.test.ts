@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPredictions, detectConfirmedReset, COMMUNITY_RESET_THRESHOLD } from './model'
+import { buildPredictions, detectConfirmedReset, relievedPain, COMMUNITY_RESET_THRESHOLD } from './model'
 import type { Event } from './data'
 
 const NOW = '2026-06-03T20:00:00Z'
@@ -87,5 +87,29 @@ describe('buildPredictions reset confirmation', () => {
   it('leaves a company unconfirmed when nothing fresh is present', () => {
     const anthropic = buildPredictions([event({})], null, undefined, NOW).find((p) => p.company === 'anthropic')!
     expect(anthropic.resetConfirmed).toBe(false)
+  })
+
+  it('discounts pain while a reset is freshly confirmed', () => {
+    const events = [event({ resetIssued: true, resetAt: '2026-06-03T19:45:00Z', resetConfidence: 'official' })]
+    const confirmed = buildPredictions(events, null, undefined, NOW).find((p) => p.company === 'openai')!
+    const noReset = buildPredictions([event({})], null, undefined, NOW).find((p) => p.company === 'openai')!
+    expect(confirmed.resetConfirmed).toBe(true)
+    expect(confirmed.painScore).toBeLessThan(noReset.painScore)
+  })
+})
+
+describe('relievedPain', () => {
+  const reset = (confidence: 'official' | 'community') => ({ at: NOW, source: 's', confidence })
+
+  it('returns pain unchanged with no fresh reset', () => {
+    expect(relievedPain(80, null)).toBe(80)
+  })
+
+  it('discounts more for stronger evidence', () => {
+    expect(relievedPain(80, reset('official'))).toBeLessThan(relievedPain(80, reset('community')))
+  })
+
+  it('never drops below zero', () => {
+    expect(relievedPain(5, reset('official'))).toBe(0)
   })
 })
