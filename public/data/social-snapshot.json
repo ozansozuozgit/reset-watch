@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T22:48:23.988Z",
+  "generated_at": "2026-06-04T23:44:21.015Z",
   "sources": [
     {
       "name": "hn",
@@ -28,17 +28,17 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.72,
-      "volume": 8,
+      "sentiment": -0.8,
+      "volume": 9,
       "pain_chatter": 100,
-      "reset_chatter": 17,
+      "reset_chatter": 19,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 8
+        "x-search-snippet": 9
       },
       "examples": [
         {
@@ -68,14 +68,6 @@
         },
         {
           "source": "x-search-snippet",
-          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
-          "matched_terms": [
-            "slow"
-          ]
-        },
-        {
-          "source": "x-search-snippet",
           "title": "I'm using Codex for the first time and it's painfully slow compared to ...",
           "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=ce2e4fe19cbbe68e59ca254a58f817422a48f195460a730f14c069133aee2124",
           "matched_terms": [
@@ -84,10 +76,18 @@
         },
         {
           "source": "x-search-snippet",
-          "title": "@thsottiaux Codex is significantly degraded as of today. Taking way ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Flouisdegeest%2Fstatus%2F2059735577734398013&amp;rut=f7d99cd7762eab4226ed5a2e9c1b01751a01c27d800bcfe47e0edd67923dd80f",
+          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
           "matched_terms": [
-            "degraded"
+            "slow"
+          ]
+        },
+        {
+          "source": "x-search-snippet",
+          "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=4be6a0d89a1cdffc774bb57bba57a94fe68a6930411bc52b5bc3b82c5e49b83a",
+          "matched_terms": [
+            "slow"
           ]
         }
       ],
