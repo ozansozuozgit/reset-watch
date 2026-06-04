@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T21:52:36.314Z",
+  "generated_at": "2026-06-04T22:48:23.988Z",
   "sources": [
     {
       "name": "hn",
@@ -28,17 +28,17 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.8,
-      "volume": 9,
+      "sentiment": -0.72,
+      "volume": 8,
       "pain_chatter": 100,
-      "reset_chatter": 19,
+      "reset_chatter": 17,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 9
+        "x-search-snippet": 8
       },
       "examples": [
         {
@@ -84,10 +84,10 @@
         },
         {
           "source": "x-search-snippet",
-          "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=4be6a0d89a1cdffc774bb57bba57a94fe68a6930411bc52b5bc3b82c5e49b83a",
+          "title": "@thsottiaux Codex is significantly degraded as of today. Taking way ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Flouisdegeest%2Fstatus%2F2059735577734398013&amp;rut=f7d99cd7762eab4226ed5a2e9c1b01751a01c27d800bcfe47e0edd67923dd80f",
           "matched_terms": [
-            "slow"
+            "degraded"
           ]
         }
       ],
