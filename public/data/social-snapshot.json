@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T11:24:34.121Z",
+  "generated_at": "2026-06-04T13:29:07.288Z",
   "sources": [
     {
       "name": "hn",
@@ -28,17 +28,17 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.8,
-      "volume": 9,
+      "sentiment": -0.88,
+      "volume": 10,
       "pain_chatter": 100,
-      "reset_chatter": 19,
+      "reset_chatter": 20,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 9
+        "x-search-snippet": 10
       },
       "examples": [
         {
@@ -84,8 +84,8 @@
         },
         {
           "source": "x-search-snippet",
-          "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=4be6a0d89a1cdffc774bb57bba57a94fe68a6930411bc52b5bc3b82c5e49b83a",
+          "title": "Codex Desktop on Windows became slow enough that switching chats or ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2FPrzemyslawKlys%2Fstatus%2F2050975980743725548&amp;rut=cb904291ac92d048d6d7bfa15e4d9f81cf69b10eb98c4a4a844d98527b44134e",
           "matched_terms": [
             "slow"
           ]
