@@ -20,6 +20,7 @@ function stat(partial: Partial<ReportStat>): ReportStat {
     provider: 'codex',
     count_1h: 0,
     count_24h: 0,
+    count_7d: 0,
     symptom_breakdown: {},
     hourly_buckets: [],
     ...partial,

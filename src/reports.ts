@@ -63,6 +63,7 @@ export type ReportStat = {
   provider: ProviderId
   count_1h: number
   count_24h: number
+  count_7d: number
   symptom_breakdown: Record<string, number>
   hourly_buckets: { t: string; c: number }[]
 }

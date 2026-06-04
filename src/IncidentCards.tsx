@@ -7,6 +7,7 @@ const EMPTY_STAT = (provider: ProviderId): ReportStat => ({
   provider,
   count_1h: 0,
   count_24h: 0,
+  count_7d: 0,
   symptom_breakdown: {},
   hourly_buckets: [],
 })
@@ -128,6 +129,7 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
         const resetRState = resetState[provider.id]
         const resetDone = resetRState?.kind === 'done' || resetRState?.kind === 'cooldown'
         const resetReports = Number(stat.symptom_breakdown?.[RESET_SYMPTOM] ?? 0)
+        const weekCount = stat.count_7d ?? stat.count_24h ?? 0
 
         return (
           <article className={`incident-card tier-${tier}`} key={provider.id}>
@@ -140,8 +142,10 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
                 </div>
               </div>
               <div className="ic-rate">
-                <b>{loading && stat.count_1h === 0 ? '—' : stat.count_1h}</b>
-                <small>reports / hr</small>
+                {/* Fall back to count_24h if count_7d is absent (frontend deploy
+                    landing before the report_stats() migration). */}
+                <b>{loading && weekCount === 0 ? '—' : weekCount}</b>
+                <small>reports / 7d</small>
               </div>
             </div>
 
