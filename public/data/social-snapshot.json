@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T09:36:09.530Z",
+  "generated_at": "2026-06-04T11:24:34.121Z",
   "sources": [
     {
       "name": "hn",
@@ -28,17 +28,17 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.88,
-      "volume": 10,
+      "sentiment": -0.8,
+      "volume": 9,
       "pain_chatter": 100,
-      "reset_chatter": 20,
+      "reset_chatter": 19,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 10
+        "x-search-snippet": 9
       },
       "examples": [
         {
@@ -68,16 +68,16 @@
         },
         {
           "source": "x-search-snippet",
-          "title": "I'm using Codex for the first time and it's painfully slow compared to ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=ce2e4fe19cbbe68e59ca254a58f817422a48f195460a730f14c069133aee2124",
+          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
           "matched_terms": [
             "slow"
           ]
         },
         {
           "source": "x-search-snippet",
-          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
+          "title": "I'm using Codex for the first time and it's painfully slow compared to ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=ce2e4fe19cbbe68e59ca254a58f817422a48f195460a730f14c069133aee2124",
           "matched_terms": [
             "slow"
           ]
