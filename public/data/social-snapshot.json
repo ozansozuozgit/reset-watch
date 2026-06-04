@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T21:01:28.601Z",
+  "generated_at": "2026-06-04T21:52:36.314Z",
   "sources": [
     {
       "name": "hn",
@@ -28,12 +28,13 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.72,
+      "sentiment": -0.8,
       "volume": 9,
       "pain_chatter": 100,
       "reset_chatter": 19,
       "top_terms": [
         "slow",
+        "slower",
         "degraded"
       ],
       "sources": {
@@ -42,16 +43,17 @@
       "examples": [
         {
           "source": "x-search-snippet",
-          "title": "Codex's app has been super slow for me lately. at first, I thought the ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2050270281521045844&amp;rut=5c913d83f705bfdd3ec118eb0c6324dc890ff96d3c50b616c7af424b087118e3",
+          "title": "Codex can get dumber and slower on long sessions. Here's the fix: 1 ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fcjzafir%2Fstatus%2F2052801300627435996&amp;rut=7246b4a18b34a6395d20d3c7e3711a61ee3ff2ea4826233ad9919214dc3ef23f",
           "matched_terms": [
-            "slow"
+            "slow",
+            "slower"
           ]
         },
         {
           "source": "x-search-snippet",
-          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
+          "title": "Codex's app has been super slow for me lately. at first, I thought the ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2050270281521045844&amp;rut=5c913d83f705bfdd3ec118eb0c6324dc890ff96d3c50b616c7af424b087118e3",
           "matched_terms": [
             "slow"
           ]
@@ -66,24 +68,24 @@
         },
         {
           "source": "x-search-snippet",
+          "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
+          "matched_terms": [
+            "slow"
+          ]
+        },
+        {
+          "source": "x-search-snippet",
+          "title": "I'm using Codex for the first time and it's painfully slow compared to ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=ce2e4fe19cbbe68e59ca254a58f817422a48f195460a730f14c069133aee2124",
+          "matched_terms": [
+            "slow"
+          ]
+        },
+        {
+          "source": "x-search-snippet",
           "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
           "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=4be6a0d89a1cdffc774bb57bba57a94fe68a6930411bc52b5bc3b82c5e49b83a",
-          "matched_terms": [
-            "slow"
-          ]
-        },
-        {
-          "source": "x-search-snippet",
-          "title": "I used Codex to fix my slow internet, and it actually worked. The ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fhqmank%2Fstatus%2F2058007157187215816&amp;rut=380079c28f6d55851044042287e24139b0f1f065564a46be8a92f54a43ef7810",
-          "matched_terms": [
-            "slow"
-          ]
-        },
-        {
-          "source": "x-search-snippet",
-          "title": "Codex has become extremely slow for me, and I can't make any coding ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2FIndominusWu%2Fstatus%2F2059196237602250908&amp;rut=6776c7ee90b41ba24fbf9c8867374ef5a68619d6daa0053dc4a66eaf1f63b68c",
           "matched_terms": [
             "slow"
           ]
