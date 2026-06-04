@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T23:55:30.308Z",
+  "generated_at": "2026-06-04T01:33:19.331Z",
   "sources": [
     {
       "name": "hn",
@@ -28,23 +28,23 @@
       "company": "openai",
       "product": "Codex",
       "heat": 100,
-      "sentiment": -0.88,
-      "volume": 10,
+      "sentiment": -0.95,
+      "volume": 11,
       "pain_chatter": 100,
-      "reset_chatter": 20,
+      "reset_chatter": 22,
       "top_terms": [
         "slow",
         "slower",
         "degraded"
       ],
       "sources": {
-        "x-search-snippet": 10
+        "x-search-snippet": 11
       },
       "examples": [
         {
           "source": "x-search-snippet",
           "title": "Codex can get dumber and slower on long sessions. Here's the fix: 1 ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fcjzafir%2Fstatus%2F2052801300627435996&amp;rut=8ffb351109c95e6d738f7e1e51fc1b75e818e2b1abbfae7f895da8ba601d5835",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fcjzafir%2Fstatus%2F2052801300627435996&amp;rut=7246b4a18b34a6395d20d3c7e3711a61ee3ff2ea4826233ad9919214dc3ef23f",
           "matched_terms": [
             "slow",
             "slower"
@@ -53,7 +53,7 @@
         {
           "source": "x-search-snippet",
           "title": "Codex's app has been super slow for me lately. at first, I thought the ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2050270281521045844&amp;rut=c2e5051d8abb6e41fa034cb04b3c0cbd678c97befd3e2560200f7bfc45deac91",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2050270281521045844&amp;rut=5c913d83f705bfdd3ec118eb0c6324dc890ff96d3c50b616c7af424b087118e3",
           "matched_terms": [
             "slow"
           ]
@@ -61,15 +61,7 @@
         {
           "source": "x-search-snippet",
           "title": "if you have any slowness in Codex app, after using it a while try this ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2051751543922417745&amp;rut=540146564699d103001255c968defb771ae98d1de1d386d02be120b99202977d",
-          "matched_terms": [
-            "slow"
-          ]
-        },
-        {
-          "source": "x-search-snippet",
-          "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=a8005168825645a082263a2fd26481ebdd92e96eca2a5c0dde01affa02154b4d",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fmeta_alchemist%2Fstatus%2F2051751543922417745&amp;rut=1091163d35b8a8860ee606a49ecf8ab94293301f568aa0c70036842c229fb4c6",
           "matched_terms": [
             "slow"
           ]
@@ -77,7 +69,15 @@
         {
           "source": "x-search-snippet",
           "title": "if your codex app feels slow, laggy and just horrible the trick i found ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=56d00200e650cfd6f7c6bccbfdef4d696c249b7d55c943a0b1acd6b664efadde",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fjasperdevs%2Fstatus%2F2058366736483643573&amp;rut=60c7b9c2ec65c1a883090cdedddbe17e84dea7b75d31fd09238d7efe8cdf0495",
+          "matched_terms": [
+            "slow"
+          ]
+        },
+        {
+          "source": "x-search-snippet",
+          "title": "Codex has become slow af every time I start the CLI it takes like 15 ...",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Frobinebers%2Fstatus%2F2042815298697679103&amp;rut=4be6a0d89a1cdffc774bb57bba57a94fe68a6930411bc52b5bc3b82c5e49b83a",
           "matched_terms": [
             "slow"
           ]
@@ -85,7 +85,7 @@
         {
           "source": "x-search-snippet",
           "title": "I'm using Codex for the first time and it's painfully slow compared to ...",
-          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=23698fab589cc13aaa8d533a2098e3460bacb30a22ca5650e1f632a7122f4b39",
+          "url": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fx.com%2Fkrisbogdanov%2Fstatus%2F2059313494428619067&amp;rut=ce2e4fe19cbbe68e59ca254a58f817422a48f195460a730f14c069133aee2124",
           "matched_terms": [
             "slow"
           ]
