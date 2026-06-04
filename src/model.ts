@@ -31,13 +31,18 @@ export const RESET_FRESH_HOURS = 24
 // How many "my limits just reset" reports (in the last hour) it takes to call a
 // community-confirmed reset on their own, with no curated announcement.
 export const COMMUNITY_RESET_THRESHOLD = 3
+// Pain relief outlasts the "Reset ✓" status window: a make-good eases developer
+// sentiment for longer than the reset stays headline-fresh, and the keyword
+// scanner is slow to register that relief. So the pain discount tapers to zero
+// over this (longer) window — measured from the reset — even after the status
+// has already flipped back to its predictive read at RESET_FRESH_HOURS.
+export const RESET_PAIN_RELIEF_HOURS = 48
 
-// While a reset is freshly confirmed, knock the pain score down. The keyword
+// Full pain discount at the moment of a reset, before tapering. The keyword
 // scanner lags real sentiment after a make-good (relief posts are quieter than
 // outrage, positive terms barely offset, and the search window still holds days
-// of pre-reset anger). A confirmed reset is real evidence the mood is turning
-// that the scanner can't see yet, so we discount pain — more when the reset is
-// strongly attested. Self-clears when the reset ages out of RESET_FRESH_HOURS.
+// of pre-reset anger). A reset is real evidence the mood is turning that the
+// scanner can't see yet, so we discount pain — more when it is strongly attested.
 const RESET_PAIN_RELIEF: Record<EvidenceStrength, number> = {
   official: 24,
   employee: 22,
@@ -45,11 +50,19 @@ const RESET_PAIN_RELIEF: Record<EvidenceStrength, number> = {
   inferred: 10,
 }
 
-// Apply post-reset relief to a raw pain score. Returns the unchanged score when
-// there is no fresh reset. Never drops below 0.
-export function relievedPain(pain: number, confirmedReset: ConfirmedReset | null): number {
-  if (!confirmedReset) return pain
-  return Math.max(0, Math.round(pain - RESET_PAIN_RELIEF[confirmedReset.confidence]))
+// Apply post-reset relief to a raw pain score. The discount tapers linearly from
+// its full value at the moment of the reset to zero at RESET_PAIN_RELIEF_HOURS,
+// so it stays visible for a while after the "Reset ✓" status expires. Returns the
+// unchanged score when there is no recent reset. Never drops below 0.
+export function relievedPain(
+  pain: number,
+  reset: ConfirmedReset | null,
+  now: string = new Date().toISOString(),
+): number {
+  if (!reset) return pain
+  const ageHours = (new Date(now).getTime() - new Date(reset.at).getTime()) / 3_600_000
+  const taper = Math.max(0, Math.min(1, 1 - ageHours / RESET_PAIN_RELIEF_HOURS))
+  return Math.max(0, Math.round(pain - RESET_PAIN_RELIEF[reset.confidence] * taper))
 }
 
 const CONFIDENCE_RANK: Record<EvidenceStrength, number> = {
@@ -76,9 +89,10 @@ export function detectConfirmedReset(
   recent: Event[],
   signal?: ResetSignal,
   now: string = new Date().toISOString(),
+  withinHours: number = RESET_FRESH_HOURS,
 ): ConfirmedReset | null {
   const nowMs = new Date(now).getTime()
-  const freshMs = RESET_FRESH_HOURS * 3_600_000
+  const freshMs = withinHours * 3_600_000
   const candidates: ConfirmedReset[] = []
 
   for (const event of recent) {
@@ -204,9 +218,12 @@ export function buildPredictions(
     const recent = companyEvents.slice().sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 4)
     const socialTopic = socialTopicForCompany(social, company)
     const confirmedReset = detectConfirmedReset(recent, resetSignals?.[company], now)
+    // Relief uses the longer window so the pain discount keeps tapering even
+    // after the "Reset ✓" status (RESET_FRESH_HOURS) has expired.
+    const reliefReset = detectConfirmedReset(recent, resetSignals?.[company], now, RESET_PAIN_RELIEF_HOURS)
     const resetScore = Math.round(clamp(companyBaseScore(recent) + (socialTopic?.reset_chatter ?? 0) * 0.1))
     const rawPain = companyPainScore(recent, socialTopic)
-    const painScore = relievedPain(rawPain, confirmedReset)
+    const painScore = relievedPain(rawPain, reliefReset, now)
     const label = classify(resetScore)
     const drivers = recent.flatMap((event) => {
       const d: string[] = []
@@ -231,8 +248,8 @@ export function buildPredictions(
     if ((socialTopic?.heat ?? 0) >= 45) {
       painDrivers.push(`${socialTopic?.product}: community heat ${socialTopic?.heat}/100 from public chatter`)
     }
-    if (confirmedReset && rawPain > painScore) {
-      painDrivers.push(`Pain discounted ${rawPain - painScore} pts: reset confirmed, sentiment expected to ease`)
+    if (reliefReset && rawPain > painScore) {
+      painDrivers.push(`Pain discounted ${rawPain - painScore} pts: recent reset, sentiment expected to ease`)
     }
 
     const blockers = [

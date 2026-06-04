@@ -126,6 +126,11 @@ function App() {
   const [socialSnapshot, setSocialSnapshot] = useState<SocialSnapshot | null>(null)
   const [reportStats, setReportStats] = useState<ReportStat[]>([])
   const [statsLoading, setStatsLoading] = useState(true)
+  // Gate the hero's "current read" on the snapshot fetches. Until they resolve,
+  // predictions fall back to seed-only data (no live snapshot/social), which
+  // produces materially different numbers — rendering them looks like a flicker
+  // to wrong values on hard refresh. We hold a loading state instead.
+  const [dataReady, setDataReady] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -147,7 +152,7 @@ function App() {
           : null
       setResetFeed(merged)
       setSocialSnapshot(social)
-    })
+    }).finally(() => setDataReady(true))
   }, [])
 
   const refreshStats = useCallback(() => {
@@ -283,7 +288,7 @@ function App() {
           <div className="eyebrow"><span /> Usage-reset + pain forecast for AI coding tools</div>
           <div className="hero-grid">
             <div>
-              <h1 className="hero-title"><span className={`hero-dot tone-${resetTone}`} aria-hidden="true" />{heroHeadline}</h1>
+              <h1 className="hero-title"><span className={`hero-dot tone-${dataReady ? resetTone : 'low'}`} aria-hidden="true" />{dataReady ? heroHeadline : 'Reading the latest reset & pain signals…'}</h1>
               <p className="lede">
                 AI Down Detector forecasts whether AI coding tools are likely to issue a make-good usage reset —
                 and how much pain developers are feeling — from official status and public chatter.
@@ -295,47 +300,57 @@ function App() {
             </div>
             <aside className="signal-card dual" aria-label="Reset and pain summary">
               <p className="card-label">Current read · reset vs pain</p>
-              <div className="readout-grid">
+              <div className={`readout-grid${dataReady ? '' : ' is-loading'}`} aria-busy={!dataReady}>
                 <div>
-                  <span>{confirmedPrediction ? 'Reset status' : 'Reset odds'}</span>
-                  {confirmedPrediction ? (
+                  <span>{dataReady && confirmedPrediction ? 'Reset status' : 'Reset odds'}</span>
+                  {!dataReady ? (
+                    <strong className="skeleton-num" aria-hidden="true">—<small>/100</small></strong>
+                  ) : confirmedPrediction ? (
                     <strong className="confirmed-readout">Reset ✓</strong>
                   ) : (
                     <strong>{topResetPrediction?.resetScore ?? '—'}<small>/100</small></strong>
                   )}
-                  <em>{confirmedPrediction
-                    ? `${confirmedPrediction.companyLabel}: limits reset ${timeAgo(confirmedPrediction.resetConfirmedAt)} (${confidenceLabel(confirmedPrediction.resetConfirmedConfidence)}).`
-                    : topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
+                  <em>{!dataReady
+                    ? 'Reading official status…'
+                    : confirmedPrediction
+                      ? `${confirmedPrediction.companyLabel}: limits reset ${timeAgo(confirmedPrediction.resetConfirmedAt)} (${confidenceLabel(confirmedPrediction.resetConfirmedConfidence)}).`
+                      : topResetPrediction ? `${topResetPrediction.companyLabel}: ${confidenceCopy(topResetPrediction.label)}.` : 'Waiting for status data.'}</em>
                 </div>
                 <div>
                   <span>Pain index</span>
-                  <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
-                  <em>{topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
+                  {!dataReady ? (
+                    <strong className="skeleton-num" aria-hidden="true">—<small>/100</small></strong>
+                  ) : (
+                    <strong>{topPainPrediction?.painScore ?? '—'}<small>/100</small></strong>
+                  )}
+                  <em>{!dataReady
+                    ? 'Reading community chatter…'
+                    : topPainPrediction ? `${topPainPrediction.companyLabel}: ${painCopy(topPainPrediction.painLabel)}.` : 'Waiting for community data.'}</em>
                 </div>
               </div>
-              <div className="mini-stats">
-                <div><b>{stat.usageMakeGoodRate}%</b><small>usage reset rate</small></div>
-                <div><b>{resetFeed?.resets.length ?? '—'}</b><small>known resets</small></div>
-                <div><b>{socialHotCount}</b><small>hot topics</small></div>
+              <div className={`mini-stats${dataReady ? '' : ' is-loading'}`} aria-busy={!dataReady}>
+                <div><b>{dataReady ? `${stat.usageMakeGoodRate}%` : '—'}</b><small>usage reset rate</small></div>
+                <div><b>{dataReady ? (resetFeed?.resets.length ?? '—') : '—'}</b><small>known resets</small></div>
+                <div><b>{dataReady ? socialHotCount : '—'}</b><small>hot topics</small></div>
               </div>
               <p className="freshness">Status: {fmtDate(snapshot?.generated_at)} · Community: {fmtDate(socialSnapshot?.generated_at)}</p>
             </aside>
           </div>
 
-          <div className="briefing-strip" aria-label="AI Down Detector briefing">
+          <div className={`briefing-strip${dataReady ? '' : ' is-loading'}`} aria-label="AI Down Detector briefing" aria-busy={!dataReady}>
             <article>
               <span>Latest match</span>
-              <b>{latestIncident ? latestIncident.companyLabel : 'No live match yet'}</b>
-              <p>{latestIncident ? latestIncident.title : 'The forecast is using curated historical evidence until the live feed updates.'}</p>
+              <b>{!dataReady ? 'Checking…' : latestIncident ? latestIncident.companyLabel : 'No live match yet'}</b>
+              <p>{!dataReady ? 'Reading the live incident feed…' : latestIncident ? latestIncident.title : 'The forecast is using curated historical evidence until the live feed updates.'}</p>
             </article>
             <article>
               <span>Reset-relevant matches</span>
-              <b>{snapshot ? highFitCount : '—'}</b>
+              <b>{dataReady && snapshot ? highFitCount : '—'}</b>
               <p>Current incidents with strong usage, quota, metering, or root-cause language.</p>
             </article>
             <article>
               <span>Signal health</span>
-              <b>{(snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
+              <b>{!dataReady ? 'Loading' : (snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
               <p>Official status pages and public community chatter are refreshing normally.</p>
             </article>
           </div>

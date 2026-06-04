@@ -99,17 +99,30 @@ describe('buildPredictions reset confirmation', () => {
 })
 
 describe('relievedPain', () => {
-  const reset = (confidence: 'official' | 'community') => ({ at: NOW, source: 's', confidence })
+  const reset = (confidence: 'official' | 'community', at: string = NOW) => ({ at, source: 's', confidence })
 
-  it('returns pain unchanged with no fresh reset', () => {
-    expect(relievedPain(80, null)).toBe(80)
+  it('returns pain unchanged with no recent reset', () => {
+    expect(relievedPain(80, null, NOW)).toBe(80)
   })
 
   it('discounts more for stronger evidence', () => {
-    expect(relievedPain(80, reset('official'))).toBeLessThan(relievedPain(80, reset('community')))
+    expect(relievedPain(80, reset('official'), NOW)).toBeLessThan(relievedPain(80, reset('community'), NOW))
   })
 
   it('never drops below zero', () => {
-    expect(relievedPain(5, reset('official'))).toBe(0)
+    expect(relievedPain(5, reset('official'), NOW)).toBe(0)
+  })
+
+  it('tapers the discount as the reset ages', () => {
+    const fresh = relievedPain(80, reset('official', NOW), NOW)
+    // 24h before NOW — half-way through the 48h relief window.
+    const aged = relievedPain(80, reset('official', '2026-06-02T20:00:00Z'), NOW)
+    expect(aged).toBeGreaterThan(fresh) // older reset → smaller discount
+    expect(aged).toBeLessThan(80) // but still discounted within the window
+  })
+
+  it('gives no discount once the reset is older than the relief window', () => {
+    // 50h before NOW — past RESET_PAIN_RELIEF_HOURS (48h).
+    expect(relievedPain(80, reset('official', '2026-06-01T18:00:00Z'), NOW)).toBe(80)
   })
 })

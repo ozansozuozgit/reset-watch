@@ -91,6 +91,11 @@ h1 { font-size: clamp(44px, 6vw, 78px); line-height: .96; letter-spacing: -.06em
 .mini-stats b { display: block; font: 700 18px 'Geist', sans-serif; font-variant-numeric: tabular-nums; }
 .mini-stats small { display: block; margin-top: 2px; color: var(--muted); font: 500 10px/1.25 'Geist Mono', monospace; text-transform: uppercase; }
 .freshness { color: var(--muted); font: 500 12px 'Geist Mono', monospace; margin: 14px 0 0; }
+/* Loading gate: hold a calm pulse on the hero "current read" until the snapshot
+   fetches resolve, instead of flashing seed-only numbers. */
+@keyframes adp-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .42; } }
+.readout-grid.is-loading strong, .mini-stats.is-loading b, .briefing-strip.is-loading b { animation: adp-skeleton-pulse 1.3s ease-in-out infinite; color: var(--muted-2); }
+.skeleton-num { color: var(--muted-2); }
 .briefing-strip { display: grid; grid-template-columns: 1.35fr .85fr 1fr; gap: 10px; margin-top: 34px; }
 .briefing-strip article { min-height: 132px; border: 1px solid var(--border); border-radius: 18px; padding: 16px; background: rgba(255,255,255,.62); }
 .briefing-strip span { display: block; color: var(--muted); font: 600 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: .06em; }
