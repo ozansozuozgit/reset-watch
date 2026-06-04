@@ -27,7 +27,7 @@ export type Prediction = {
 
 // How long a reset stays "freshly confirmed" before the card returns to its
 // normal predictive read.
-export const RESET_FRESH_HOURS = 72
+export const RESET_FRESH_HOURS = 24
 // How many "my limits just reset" reports (in the last hour) it takes to call a
 // community-confirmed reset on their own, with no curated announcement.
 export const COMMUNITY_RESET_THRESHOLD = 3
