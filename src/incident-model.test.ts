@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   baselineFromBuckets,
   blendCondition,
+  communityHeatRead,
   deriveStatus,
   painTier,
   topSymptoms,
@@ -142,6 +143,40 @@ describe('blendCondition', () => {
   it('works with no stat at all', () => {
     expect(blendCondition({ pain: 88 }).tier).toBe('spike')
     expect(blendCondition({}).tier).toBe('normal')
+  })
+})
+
+describe('communityHeatRead', () => {
+  it('is hot whenever social chatter is live, regardless of other signals', () => {
+    const r = communityHeatRead({ socialQuiet: false, officialIncident: false, reportTier: 'normal' })
+    expect(r.tone).toBe('hot')
+    expect(r.corroboratedBy).toBeNull()
+  })
+
+  it('is calm only when social is quiet AND nothing else is wrong', () => {
+    const r = communityHeatRead({ socialQuiet: true, officialIncident: false, reportTier: 'normal' })
+    expect(r.tone).toBe('calm')
+    expect(r.corroboratedBy).toBeNull()
+  })
+
+  it('does NOT read calm when social is quiet but an official incident is active', () => {
+    // The Claude Code bug: free social scan finds nothing, yet an official
+    // incident is live — the card must not declare "all calm".
+    const r = communityHeatRead({ socialQuiet: true, officialIncident: true, reportTier: 'normal' })
+    expect(r.tone).toBe('corroborated')
+    expect(r.corroboratedBy).toBe('incident')
+  })
+
+  it('does NOT read calm when social is quiet but on-site reports are elevated', () => {
+    const r = communityHeatRead({ socialQuiet: true, officialIncident: false, reportTier: 'elevated' })
+    expect(r.tone).toBe('corroborated')
+    expect(r.corroboratedBy).toBe('reports')
+  })
+
+  it('attributes to the official incident when both an incident and reports are hot', () => {
+    const r = communityHeatRead({ socialQuiet: true, officialIncident: true, reportTier: 'spike' })
+    expect(r.tone).toBe('corroborated')
+    expect(r.corroboratedBy).toBe('incident')
   })
 })
 
