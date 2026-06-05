@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { companies, events as seedEvents, failurePoints, watchlistSignals, type CompanyId } from './data'
-import { liveEventsFromSnapshot, loadJson, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
+import { liveEventsFromSnapshot, loadJson, loadSnapshot, mergeEvents, type ResetFeed, type SocialSnapshot, type StatusSnapshot } from './live'
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction, type ResetSignal } from './model'
 import { IncidentCards } from './IncidentCards'
-import { fetchReportStats } from './supabase'
+import { fetchReportStats, fetchSnapshot } from './supabase'
 import { blendCondition, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, providerById, RESET_SYMPTOM, type ProviderId, type ReportStat } from './reports'
 
@@ -134,13 +134,16 @@ function App() {
 
   useEffect(() => {
     Promise.all([
-      loadJson<StatusSnapshot>('/data/status-snapshot.json'),
+      // Generated snapshots: prefer the live Supabase row, fall back to the
+      // static /data file (local dev / demo / transient miss). resets.json is
+      // curated, not generated, so it stays a plain file load.
+      loadSnapshot<StatusSnapshot>(() => fetchSnapshot<StatusSnapshot>('status'), () => loadJson<StatusSnapshot>('/data/status-snapshot.json')),
       loadJson<ResetFeed>('/data/resets.json'),
-      loadJson<SocialSnapshot>('/data/social-snapshot.json'),
+      loadSnapshot<SocialSnapshot>(() => fetchSnapshot<SocialSnapshot>('social'), () => loadJson<SocialSnapshot>('/data/social-snapshot.json')),
       // Tier 3: reset language auto-detected from status-page incident updates
       // by the hourly cron. Lower confidence (`inferred`); merged with the
       // curated feed so it can light up the forecast without clobbering it.
-      loadJson<ResetFeed>('/data/auto-resets.json'),
+      loadSnapshot<ResetFeed>(() => fetchSnapshot<ResetFeed>('auto-resets'), () => loadJson<ResetFeed>('/data/auto-resets.json')),
     ]).then(([statusSnapshot, resets, social, autoResets]) => {
       setSnapshot(statusSnapshot)
       const merged: ResetFeed | null =

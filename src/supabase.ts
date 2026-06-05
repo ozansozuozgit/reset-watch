@@ -69,3 +69,14 @@ export async function fetchReportStats(): Promise<ReportStat[]> {
   if (error || !data) return []
   return data as ReportStat[]
 }
+
+// Latest generated snapshot for a kind (issue #2). Returns null when Supabase is
+// unconfigured or empty so callers fall back to the static /data file.
+export type SnapshotKind = 'social' | 'status' | 'auto-resets'
+
+export async function fetchSnapshot<T>(kind: SnapshotKind): Promise<T | null> {
+  if (!client) return null
+  const { data, error } = await client.rpc('latest_snapshot', { p_kind: kind })
+  if (error || !data) return null
+  return data as T
+}

@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises'
+import { pushSnapshot } from './lib/push-snapshot.mjs'
 
 const sources = [
   ['openai', 'https://status.openai.com/api/v2/incidents.json'],
@@ -102,6 +103,7 @@ snapshot.incidents = snapshot.incidents
 
 await writeFile('public/data/status-snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`)
 console.log(`Wrote ${snapshot.incidents.length} matched incidents to public/data/status-snapshot.json`)
+await pushSnapshot('status', snapshot)
 
 const autoResetFeed = {
   generated_at: snapshot.generated_at,
@@ -111,6 +113,7 @@ const autoResetFeed = {
 }
 await writeFile('public/data/auto-resets.json', `${JSON.stringify(autoResetFeed, null, 2)}\n`)
 console.log(`Wrote ${autoResetFeed.resets.length} auto-detected reset signals to public/data/auto-resets.json`)
+await pushSnapshot('auto-resets', autoResetFeed)
 
 if (snapshot.errors.length) {
   console.warn('Fetch errors:', snapshot.errors)

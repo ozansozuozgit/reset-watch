@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { scoreText, summarizeTopic } from './lib/social-score.mjs'
+import { pushSnapshot } from './lib/push-snapshot.mjs'
 
 const topics = [
   {
@@ -230,4 +231,5 @@ for (const topic of topics) {
 
 await writeFile('public/data/social-snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`)
 console.log(`Wrote ${snapshot.topics.length} social topics to public/data/social-snapshot.json`)
+await pushSnapshot('social', snapshot)
 if (snapshot.errors.length) console.warn('Social fetch errors:', snapshot.errors)
