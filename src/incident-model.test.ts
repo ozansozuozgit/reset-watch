@@ -4,6 +4,7 @@ import {
   blendCondition,
   communityHeatRead,
   deriveStatus,
+  effectiveHeat,
   painTier,
   topSymptoms,
   tierIsWorse,
@@ -177,6 +178,32 @@ describe('communityHeatRead', () => {
     const r = communityHeatRead({ socialQuiet: true, officialIncident: true, reportTier: 'spike' })
     expect(r.tone).toBe('corroborated')
     expect(r.corroboratedBy).toBe('incident')
+  })
+})
+
+describe('effectiveHeat', () => {
+  it('passes raw chatter heat through when nothing corroborates', () => {
+    expect(effectiveHeat({ chatterHeat: 30, officialIncident: false, reportTier: 'normal' })).toBe(30)
+  })
+
+  it('floors a zero-chatter topic to hot-topic territory during an official incident', () => {
+    const h = effectiveHeat({ chatterHeat: 0, officialIncident: true, reportTier: 'normal' })
+    expect(h).toBeGreaterThanOrEqual(58)
+  })
+
+  it('floors highest for a report spike, lower for elevated reports', () => {
+    const spike = effectiveHeat({ chatterHeat: 0, officialIncident: false, reportTier: 'spike' })
+    const elevated = effectiveHeat({ chatterHeat: 0, officialIncident: false, reportTier: 'elevated' })
+    expect(spike).toBeGreaterThan(elevated)
+    expect(elevated).toBeGreaterThanOrEqual(58)
+  })
+
+  it('keeps the higher value when chatter already exceeds the floor', () => {
+    expect(effectiveHeat({ chatterHeat: 92, officialIncident: true, reportTier: 'spike' })).toBe(92)
+  })
+
+  it('clamps to 100', () => {
+    expect(effectiveHeat({ chatterHeat: 130, officialIncident: false, reportTier: 'normal' })).toBe(100)
   })
 })
 
