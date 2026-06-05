@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { scoreText, summarizeTopic } from './lib/social-score.mjs'
 
 const topics = [
   {
@@ -6,22 +7,17 @@ const topics = [
     company: 'openai',
     product: 'Codex',
     queries: ['Codex slow', 'Codex degraded', 'Codex unusable', 'Codex usage limits', 'Codex reset limits'],
+    // Official accounts that announce Codex limit/quota changes directly.
+    official_handles: ['thsottiaux'],
   },
   {
     id: 'anthropic-claude-code',
     company: 'anthropic',
     product: 'Claude Code',
     queries: ['Claude Code slow', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code usage limits', 'Claude Code reset limits'],
+    official_handles: ['AlexAlbert_', 'AnthropicAI'],
   },
 ]
-
-const painTerms = [
-  'degraded', 'degradation', 'slow', 'slower', 'unusable', 'broken', 'worse', 'regression', 'bug', 'bugs',
-  'error', 'errors', 'failed', 'failure', 'outage', 'latency', 'stuck', 'down', 'drain', 'drained', 'limits',
-  'limit', 'quota', 'rate limit', 'compaction', 'burned', 'burnt', 'wasted', 'nerfed', 'cooked',
-]
-const resetTerms = ['reset', 'resets', 'restored', 'restore', 'refund', 'refunded', 'compensate', 'compensation', 'make-good', 'apology', 'weekly', 'hourly']
-const positiveTerms = ['fixed', 'resolved', 'shipped', 'better', 'improved', 'working']
 
 const timeout = 9000
 
@@ -52,23 +48,6 @@ function stripHtml(value = '') {
   return value.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
 }
 
-function termMatches(text, terms) {
-  const lower = text.toLowerCase()
-  return terms.filter((term) => lower.includes(term))
-}
-
-function scoreText(text) {
-  const pain = termMatches(text, painTerms)
-  const reset = termMatches(text, resetTerms)
-  const positive = termMatches(text, positiveTerms)
-  return {
-    pain,
-    reset,
-    positive,
-    score: pain.length * 8 + reset.length * 5 - positive.length * 3,
-  }
-}
-
 function normalizeUrl(url = '') {
   try {
     const parsed = new URL(url)
@@ -78,16 +57,6 @@ function normalizeUrl(url = '') {
   } catch {
     return url
   }
-}
-
-function dedupe(items) {
-  const seen = new Set()
-  return items.filter((item) => {
-    const key = `${item.source}:${item.url || item.title}`.toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
 }
 
 async function hnSearch(topic) {
@@ -182,60 +151,44 @@ async function duckDuckGoSiteSearch(topic, site, source) {
   return items
 }
 
+// Issue #1: scan the timelines of official accounts that announce limit/quota
+// resets directly, via the same free DuckDuckGo HTML fallback. Best-effort —
+// DDG indexes X profiles sparsely — so it augments, never replaces, the keyword
+// scrapers. Items are flagged `official` so summarizeTopic can give a verified
+// reset mention a bounded, capped lift.
+async function officialProfileSearch(topic, source = 'official-announcement') {
+  if (!topic.official_handles?.length) return []
+  const items = []
+  for (const handle of topic.official_handles) {
+    const query = `site:x.com/${handle} reset OR limits OR cleared OR fixed`
+    const html = await fetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { accept: 'text/html' })
+    const matches = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0, 5)
+    for (const match of matches) {
+      const title = stripHtml(match[2])
+      const url = normalizeUrl(match[1])
+      if (!title) continue
+      const scored = scoreText(title)
+      items.push({
+        source,
+        official: true,
+        title: `[OFFICIAL] ${title}`,
+        url,
+        // Modest score lift so official posts surface in the top examples; the
+        // honest metric movement is the capped boost inside summarizeTopic.
+        score: scored.score + 20,
+        matched_terms: [...new Set([...scored.pain, ...scored.reset])],
+      })
+    }
+  }
+  return items
+}
+
 async function loadOverrides() {
   try {
     return JSON.parse(await readFile('public/data/social-overrides.json', 'utf8'))
   } catch {
     return { generated_at: new Date(0).toISOString(), topics: [] }
   }
-}
-
-function applyOverride(summary, overrides) {
-  const override = overrides.topics?.find((item) => item.id === summary.id || item.product === summary.product)
-  if (!override) return summary
-  const heat = Math.max(summary.heat, Math.min(100, (summary.heat ?? 0) + (override.heat_boost ?? 0)))
-  return {
-    ...summary,
-    heat,
-    reset_chatter: Math.min(100, summary.reset_chatter + (override.reset_chatter_boost ?? 0)),
-    pain_chatter: Math.min(100, summary.pain_chatter + (override.pain_chatter_boost ?? 0)),
-    notes: [...summary.notes, `Manual override: ${override.note || 'operator marked elevated community signal'}`],
-  }
-}
-
-function summarizeTopic(topic, rawItems, overrides) {
-  const items = dedupe(rawItems)
-    .filter((item) => item.score > 0 || item.matched_terms.length)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 40)
-
-  const volume = items.length
-  const painHits = items.reduce((sum, item) => sum + termMatches(`${item.title} ${(item.matched_terms ?? []).join(' ')}`, painTerms).length, 0)
-  const resetHits = items.reduce((sum, item) => sum + termMatches(`${item.title} ${(item.matched_terms ?? []).join(' ')}`, resetTerms).length, 0)
-  const sourceCounts = items.reduce((acc, item) => ({ ...acc, [item.source]: (acc[item.source] ?? 0) + 1 }), {})
-  const topTerms = [...new Set(items.flatMap((item) => item.matched_terms ?? []))].slice(0, 10)
-  const heat = Math.min(100, Math.round(volume * 5 + painHits * 5 + resetHits * 2))
-  const painChatter = Math.min(100, Math.round(painHits * 8 + volume * 3))
-  const resetChatter = Math.min(100, Math.round(resetHits * 10 + volume * 1.5))
-  const sentiment = volume ? Math.max(-0.95, Math.min(0.25, Math.round((resetHits * 0.03 - painHits * 0.08) * 100) / 100)) : 0
-
-  return applyOverride({
-    id: topic.id,
-    company: topic.company,
-    product: topic.product,
-    heat,
-    sentiment,
-    volume,
-    pain_chatter: painChatter,
-    reset_chatter: resetChatter,
-    top_terms: topTerms,
-    sources: sourceCounts,
-    examples: items.slice(0, 6).map(({ source, title, url, published_at, matched_terms }) => ({ source, title, url, published_at, matched_terms })),
-    notes: [
-      'Free-only community signal: HN Algolia plus DuckDuckGo snippets for X, Reddit, and Bluesky when available.',
-      'Counts are noisy and rate-limit tolerant; use heat as a directional vibe check, not analytics-grade sentiment.',
-    ],
-  }, overrides)
 }
 
 await mkdir('public/data', { recursive: true })
@@ -247,6 +200,7 @@ const snapshot = {
     { name: 'x-search-snippet', url: 'https://html.duckduckgo.com/html/?q=site:x.com' },
     { name: 'reddit-search-snippet', url: 'https://html.duckduckgo.com/html/?q=site:reddit.com' },
     { name: 'bluesky-search-snippet', url: 'https://html.duckduckgo.com/html/?q=site:bsky.app' },
+    { name: 'official-announcement', url: 'https://html.duckduckgo.com/html/?q=site:x.com/<official-handle>' },
     { name: 'manual-overrides', url: '/data/social-overrides.json' },
   ],
   topics: [],
@@ -262,6 +216,7 @@ for (const topic of topics) {
     (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'x.com', 'x-search-snippet'),
     (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'reddit.com', 'reddit-search-snippet'),
     (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'bsky.app', 'bluesky-search-snippet'),
+    (targetTopic) => officialProfileSearch(targetTopic),
   ]
   for (const fetcher of fetchers) {
     try {
