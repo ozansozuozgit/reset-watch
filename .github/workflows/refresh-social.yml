@@ -1,0 +1,30 @@
+name: Refresh social snapshot (Tavily)
+
+# Tavily-powered community-heat search. One basic search per topic = 1 credit,
+# 2 topics = ~2 credits/run. Every 4h => ~360 credits/month, well under a 1,000
+# monthly plan. A Supabase-backed monthly cap (TAVILY_MONTHLY_CAP, default 700)
+# is the hard guarantee against overspend; without a Tavily key it degrades to the
+# free scrapers. Run manually via "Run workflow" (each run costs ~2 credits).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */4 * * *'
+
+jobs:
+  refresh-social:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch:social
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # Optional override; defaults to 700 in the script.
+          TAVILY_MONTHLY_CAP: ${{ vars.TAVILY_MONTHLY_CAP }}

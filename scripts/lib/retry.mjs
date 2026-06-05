@@ -23,17 +23,20 @@ export async function withRetry(fn, { attempts = 3, delayMs = 800 } = {}) {
 }
 
 // Try a primary source, fall back to a secondary when the primary throws or
-// returns nothing. Used so a free real API (Reddit/Bluesky) that 403s or comes
-// up empty from a CI runner IP degrades to the DuckDuckGo snippet scrape instead
-// of zeroing the topic. A throw from the fallback propagates to the caller so it
-// can be recorded in snapshot.errors.
-export async function runWithFallback(primary, fallback) {
+// returns nothing. Used so the budgeted Tavily search degrades to the free
+// scrapers when its key is missing or the monthly credit cap is reached, instead
+// of zeroing the topic. The optional onPrimaryIssue callback reports WHY the
+// fallback happened (a 403, "budget reached", or "0 items") for CI-log diagnosis;
+// a throw from the fallback propagates to the caller.
+export async function runWithFallback(primary, fallback, onPrimaryIssue) {
   let result
   try {
     result = await primary()
-  } catch {
-    result = null
+  } catch (error) {
+    onPrimaryIssue?.(error instanceof Error ? error.message : String(error))
+    return fallback()
   }
   if (Array.isArray(result) && result.length > 0) return result
+  onPrimaryIssue?.('returned 0 items')
   return fallback()
 }
