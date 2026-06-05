@@ -10,6 +10,9 @@ const topics = [
     id: 'openai-codex',
     company: 'openai',
     product: 'Codex',
+    // Relevance gate: an item's title must mention one of these or it's dropped
+    // (kills cross-topic bleed and "eBay/iPhone limits" search junk).
+    relevance: ['codex'],
     // One Tavily query (semantic, free domain filtering). The free-fallback
     // scrapers use the keyword list below; precision comes from the score>0 filter.
     tavily_query: 'OpenAI Codex slow, down, broken, errors, degraded, rate limit, usage limits, outage',
@@ -21,6 +24,7 @@ const topics = [
     id: 'anthropic-claude-code',
     company: 'anthropic',
     product: 'Claude Code',
+    relevance: ['claude'],
     tavily_query: 'Claude Code (Anthropic) slow, down, broken, errors, degraded, rate limit, usage limits, outage',
     queries: ['Claude Code slow', 'Claude Code down', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code errors', 'Claude Code usage limits', 'Claude Code rate limit', 'Anthropic limits'],
     official_handles: ['AlexAlbert_', 'AnthropicAI'],

@@ -63,6 +63,47 @@ describe('summarizeTopic recency + tutorial weighting', () => {
   })
 })
 
+describe('summarizeTopic relevance filtering', () => {
+  it('drops off-topic items (e.g. "eBay selling limits") when relevance terms are set', () => {
+    const codex = { ...topic, relevance: ['codex'] }
+    const items = [
+      item({ title: 'Codex is broken and slow today', url: 'https://x.com/a', matched_terms: ['broken', 'slow'], published_at: hoursAgo(1) }),
+      item({ title: 'eBay selling limits 2026 guide', url: 'https://x.com/b', matched_terms: ['limits'], published_at: hoursAgo(1) }),
+      item({ title: 'How to Turn Off Time Limit on iPhone', url: 'https://x.com/c', matched_terms: ['limit'], published_at: hoursAgo(1) }),
+    ]
+    const out = summarizeTopic(codex, items, noOverrides, NOW)
+    expect(out.volume).toBe(1)
+    expect(out.examples.every((e: { title: string }) => /codex/i.test(e.title))).toBe(true)
+  })
+
+  it('does not cross-count another product’s posts', () => {
+    const claude = { id: 'anthropic-claude-code', company: 'anthropic', product: 'Claude Code', relevance: ['claude'] }
+    const items = [item({ title: 'Codex Rate limits reset for all paid plans', matched_terms: ['limits', 'reset'], published_at: hoursAgo(1) })]
+    expect(summarizeTopic(claude, items, noOverrides, NOW).volume).toBe(0)
+  })
+
+  it('keeps every scored item when no relevance is configured (back-compat)', () => {
+    const items = [item({ title: 'eBay selling limits 2026', matched_terms: ['limits'], published_at: hoursAgo(1) })]
+    expect(summarizeTopic(topic, items, noOverrides, NOW).volume).toBe(1)
+  })
+})
+
+describe('summarizeTopic heat dynamic range', () => {
+  const painful = (n: number) => Array.from({ length: n }, (_, i) =>
+    item({ title: `Codex slow error broken ${i}`, url: `https://x.com/p/${i}`, matched_terms: ['slow', 'error', 'broken'], published_at: hoursAgo(1) }))
+
+  it('does not pin heat at 100 for just a few painful posts', () => {
+    expect(summarizeTopic(topic, painful(3), noOverrides, NOW).heat).toBeLessThan(60)
+  })
+
+  it('scales heat up as painful volume grows, reaching ~100 only when widespread', () => {
+    const few = summarizeTopic(topic, painful(3), noOverrides, NOW).heat
+    const many = summarizeTopic(topic, painful(18), noOverrides, NOW).heat
+    expect(many).toBeGreaterThan(few)
+    expect(many).toBeGreaterThanOrEqual(95)
+  })
+})
+
 describe('summarizeTopic official-source boost', () => {
   it('bumps reset_chatter and heat (capped at 100) when an official post mentions a reset term', () => {
     const officialReset = item({

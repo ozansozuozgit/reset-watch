@@ -22,6 +22,14 @@ export const tutorialTerms = ['how to', 'tip', 'tips', 'try this', 'trick', 'tut
 export const OFFICIAL_RESET_BOOST = 18
 export const OFFICIAL_HEAT_BOOST = 10
 
+// Heat/pain are normalized toward a saturation point rather than summed with raw
+// coefficients, so a search source that returns a roughly fixed number of results
+// can't pin the score at 100 from a handful of posts. ~16 recent painful posts
+// (decay-weighted ≈ HEAT_SATURATION) reads as fully hot; lighter chatter keeps a
+// real 0–100 range.
+export const HEAT_SATURATION = 8
+export const PAIN_SATURATION = 12
+
 // Recency decay window: a post counts at full weight while fresh, then fades to a
 // small floor by the end of the week so stale chatter can't prop up live heat.
 const FRESH_HOURS = 6
@@ -111,8 +119,14 @@ function officialResetItem(items) {
 }
 
 export function summarizeTopic(topic, rawItems, overrides, now = new Date()) {
+  // Relevance gate: when a topic lists brand terms, keep only items whose title
+  // mentions one. This drops cross-topic bleed (a Codex post under Claude Code)
+  // and search junk that merely contains a pain word ("eBay selling limits",
+  // "iPhone time limit"). Opt-in, so callers without `relevance` are unaffected.
+  const relevance = Array.isArray(topic.relevance) ? topic.relevance : []
   const items = dedupe(rawItems)
     .filter((item) => item.score > 0 || item.matched_terms.length)
+    .filter((item) => relevance.length === 0 || termMatches(item.title || '', relevance).length > 0)
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 40)
 
@@ -126,8 +140,11 @@ export function summarizeTopic(topic, rawItems, overrides, now = new Date()) {
   const resetHits = weighted.reduce((sum, { item, w }) => sum + w * termCount(item, resetTerms), 0)
   const sourceCounts = items.reduce((acc, item) => ({ ...acc, [item.source]: (acc[item.source] ?? 0) + 1 }), {})
   const topTerms = [...new Set(items.flatMap((item) => item.matched_terms ?? []))].slice(0, 10)
-  let heat = Math.min(100, Math.round(weightedVolume * 6 + painHits * 6 + resetHits * 3))
-  const painChatter = Math.min(100, Math.round(painHits * 9 + weightedVolume * 4))
+  // Normalized toward saturation (see HEAT_SATURATION) so the score spans 0–100
+  // with real range instead of pinning at 100 from a few results. weightedVolume
+  // already counts only pain/reset-bearing items (the score>0 filter above).
+  let heat = Math.min(100, Math.round((weightedVolume / HEAT_SATURATION) * 100))
+  const painChatter = Math.min(100, Math.round((painHits / PAIN_SATURATION) * 100))
   let resetChatter = Math.min(100, Math.round(resetHits * 11 + weightedVolume * 2))
   const sentiment = volume ? Math.max(-0.95, Math.min(0.25, Math.round((resetHits * 0.03 - painHits * 0.08) * 100) / 100)) : 0
 
