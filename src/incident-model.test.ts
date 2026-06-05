@@ -2,18 +2,25 @@ import { describe, expect, it } from 'vitest'
 import {
   baselineFromBuckets,
   blendCondition,
+  buildPrimaryProviderReads,
   communityHeatRead,
+  compareReportUrgency,
   deriveStatus,
   effectiveHeat,
+  instantReportTier,
+  liveStatusNote,
   painTier,
+  pickReportLead,
+  sustainedElevatedHours,
   topSymptoms,
   tierIsWorse,
+  cardTrafficDisplay,
+  historyChip,
   DEFAULT_THRESHOLDS,
 } from './incident-model'
 import type { ReportStat } from './reports'
 
 function buckets(counts: number[]): { t: string; c: number }[] {
-  // Oldest -> newest; the last entry is the still-filling current hour.
   return counts.map((c, i) => ({ t: `2026-06-03T${String(i).padStart(2, '0')}:00:00Z`, c }))
 }
 
@@ -32,54 +39,66 @@ function stat(partial: Partial<ReportStat>): ReportStat {
 describe('baselineFromBuckets', () => {
   it('returns 0 with no history', () => {
     expect(baselineFromBuckets([])).toBe(0)
-    expect(baselineFromBuckets(buckets([5]))).toBe(0) // only the current hour
+    expect(baselineFromBuckets(buckets([5]))).toBe(0)
   })
 
   it('ignores the current (last) bucket and medians the rest', () => {
-    // prior = [2,4,6] -> median 4; last bucket (99) excluded
     expect(baselineFromBuckets(buckets([2, 4, 6, 99]))).toBe(4)
   })
 
   it('averages the middle two for an even count of prior buckets', () => {
-    // prior = [2,4,6,8] -> median (4+6)/2 = 5
     expect(baselineFromBuckets(buckets([2, 4, 6, 8, 99]))).toBe(5)
+  })
+})
+
+describe('instantReportTier', () => {
+  it('flags spike above spike floor and 4x baseline', () => {
+    expect(instantReportTier(10, 2, DEFAULT_THRESHOLDS)).toBe('spike')
   })
 })
 
 describe('deriveStatus', () => {
   it('is normal when volume is low even if ratio is high', () => {
-    // current 3 is below elevatedFloor (4) despite huge ratio vs baseline 0
     const read = deriveStatus(stat({ count_1h: 3, hourly_buckets: buckets([0, 0, 0, 3]) }))
     expect(read.tier).toBe('normal')
   })
 
   it('is normal when ratio is low even if volume is high', () => {
-    // baseline 50, current 55 -> ratio ~1.1, not elevated
     const read = deriveStatus(stat({ count_1h: 55, hourly_buckets: buckets([50, 50, 50, 55]) }))
     expect(read.tier).toBe('normal')
   })
 
   it('flags elevated above floor and 2x baseline', () => {
-    // baseline 3, current 6 -> ratio 2, floor 4 met
     const read = deriveStatus(stat({ count_1h: 6, hourly_buckets: buckets([3, 3, 3, 6]) }))
     expect(read.tier).toBe('elevated')
   })
 
-  it('flags spike above spike floor and 4x baseline', () => {
-    // baseline 2, current 10 -> ratio 5, floor 8 met
+  it('downgrades an isolated hourly spike to possible problems', () => {
     const read = deriveStatus(stat({ count_1h: 10, hourly_buckets: buckets([2, 2, 2, 10]) }))
+    expect(read.instant).toBe('spike')
+    expect(read.tier).toBe('elevated')
+  })
+
+  it('flags spike when elevation is sustained across hours', () => {
+    const series = buckets([2, 2, 2, 10, 12, 14])
+    const read = deriveStatus(stat({ count_1h: 14, hourly_buckets: series }))
+    expect(read.tier).toBe('spike')
+    expect(sustainedElevatedHours(series)).toBeGreaterThanOrEqual(2)
+  })
+
+  it('flags spike on an overwhelming single-hour burst', () => {
+    const read = deriveStatus(stat({ count_1h: 16, hourly_buckets: buckets([1, 1, 1, 16]) }))
     expect(read.tier).toBe('spike')
   })
 
   it('does not spike on high ratio if below spike floor', () => {
-    // baseline 1, current 6 -> ratio 6 (>=4) but current 6 < spikeFloor 8 => elevated
     const read = deriveStatus(stat({ count_1h: 6, hourly_buckets: buckets([1, 1, 1, 6]) }))
     expect(read.tier).toBe('elevated')
   })
 
   it('respects custom thresholds', () => {
     const read = deriveStatus(
-      stat({ count_1h: 5, hourly_buckets: buckets([1, 1, 1, 5]) }),
+      stat({ count_1h: 8, hourly_buckets: buckets([1, 1, 1, 8]) }),
       { ...DEFAULT_THRESHOLDS, spikeFloor: 5, spikeMult: 3 },
     )
     expect(read.tier).toBe('spike')
@@ -104,20 +123,25 @@ describe('topSymptoms', () => {
 })
 
 describe('painTier', () => {
-  it('maps pain score to tier', () => {
+  it('caps community pain at possible problems', () => {
     expect(painTier(20)).toBe('normal')
     expect(painTier(58)).toBe('elevated')
-    expect(painTier(88)).toBe('spike')
+    expect(painTier(88)).toBe('elevated')
   })
 })
 
 describe('blendCondition', () => {
   it('does NOT report normal when reports are empty but pain is high', () => {
-    // The core bug fix: 0 user reports must not force "normal" when pain is 88.
     const c = blendCondition({ stat: stat({ count_1h: 0 }), pain: 88 })
-    expect(c.tier).toBe('spike')
+    expect(c.tier).toBe('elevated')
     expect(c.driver).toBe('pain')
     expect(c.reportsPerHour).toBe(0)
+  })
+
+  it('never marks pain alone as problems', () => {
+    const c = blendCondition({ stat: stat({ count_1h: 0 }), pain: 99 })
+    expect(c.tier).toBe('elevated')
+    expect(c.tier).not.toBe('spike')
   })
 
   it('is normal only when every signal is quiet', () => {
@@ -132,9 +156,9 @@ describe('blendCondition', () => {
     expect(c.driver).toBe('incident')
   })
 
-  it('a report spike still wins and is attributed to reports', () => {
+  it('a sustained report spike still wins and is attributed to reports', () => {
     const c = blendCondition({
-      stat: stat({ count_1h: 10, hourly_buckets: buckets([2, 2, 2, 10]) }),
+      stat: stat({ count_1h: 14, hourly_buckets: buckets([2, 2, 2, 10, 12, 14]) }),
       pain: 40,
     })
     expect(c.tier).toBe('spike')
@@ -142,7 +166,7 @@ describe('blendCondition', () => {
   })
 
   it('works with no stat at all', () => {
-    expect(blendCondition({ pain: 88 }).tier).toBe('spike')
+    expect(blendCondition({ pain: 88 }).tier).toBe('elevated')
     expect(blendCondition({}).tier).toBe('normal')
   })
 })
@@ -161,8 +185,6 @@ describe('communityHeatRead', () => {
   })
 
   it('does NOT read calm when social is quiet but an official incident is active', () => {
-    // The Claude Code bug: free social scan finds nothing, yet an official
-    // incident is live — the card must not declare "all calm".
     const r = communityHeatRead({ socialQuiet: true, officialIncident: true, reportTier: 'normal' })
     expect(r.tone).toBe('corroborated')
     expect(r.corroboratedBy).toBe('incident')
@@ -213,5 +235,94 @@ describe('tierIsWorse', () => {
     expect(tierIsWorse('elevated', 'normal')).toBe(true)
     expect(tierIsWorse('normal', 'spike')).toBe(false)
     expect(tierIsWorse('elevated', 'elevated')).toBe(false)
+  })
+})
+
+describe('compareReportUrgency', () => {
+  it('prefers current spike over high weekly volume with quiet reports now', () => {
+    const codex = stat({ count_1h: 1, count_24h: 4, count_7d: 154, hourly_buckets: buckets([2, 2, 2, 1]) })
+    const claude = stat({
+      provider: 'claude-code',
+      count_1h: 9,
+      count_24h: 22,
+      count_7d: 38,
+      hourly_buckets: buckets([1, 1, 2, 9]),
+    })
+    expect(compareReportUrgency(claude, codex)).toBeGreaterThan(0)
+    expect(compareReportUrgency(codex, claude)).toBeLessThan(0)
+  })
+})
+
+describe('pickReportLead', () => {
+  it('returns the provider spiking on current reports, not weekly totals', () => {
+    const lead = pickReportLead([
+      { providerId: 'codex', stat: stat({ count_1h: 1, count_24h: 4, count_7d: 154, hourly_buckets: buckets([2, 2, 2, 1]) }) },
+      {
+        providerId: 'claude-code',
+        stat: stat({
+          provider: 'claude-code',
+          count_1h: 9,
+          count_24h: 22,
+          count_7d: 38,
+          hourly_buckets: buckets([1, 1, 2, 9]),
+        }),
+      },
+    ])
+    expect(lead?.providerId).toBe('claude-code')
+    expect(lead?.reportTier).toBe('elevated')
+  })
+
+  it('returns null when nobody is elevated on current reports', () => {
+    const lead = pickReportLead([
+      { providerId: 'codex', stat: stat({ count_1h: 1, count_7d: 154, hourly_buckets: buckets([1, 1, 1, 1]) }) },
+      { providerId: 'claude-code', stat: stat({ provider: 'claude-code', count_1h: 0, hourly_buckets: buckets([0, 0, 0, 0]) }) },
+    ])
+    expect(lead).toBeNull()
+  })
+})
+
+describe('buildPrimaryProviderReads', () => {
+  it('uses the same report tier everywhere for a provider', () => {
+    const reads = buildPrimaryProviderReads({
+      stats: [
+        stat({ provider: 'codex', count_1h: 1, hourly_buckets: buckets([2, 2, 2, 1]) }),
+        stat({
+          provider: 'claude-code',
+          count_1h: 9,
+          count_24h: 22,
+          hourly_buckets: buckets([1, 1, 2, 9]),
+        }),
+      ],
+      painByProvider: { codex: 90 },
+      corroboration: {},
+    })
+    const codex = reads.find((r) => r.providerId === 'codex')!
+    const claude = reads.find((r) => r.providerId === 'claude-code')!
+    expect(codex.report.tier).toBe('normal')
+    expect(codex.blended.tier).toBe('elevated')
+    expect(claude.report.tier).toBe('elevated')
+    expect(liveStatusNote(claude)).toBe('Spike building — needs another elevated hour to confirm')
+  })
+})
+
+describe('cardTrafficDisplay', () => {
+  it('leads with 24h volume on quiet hours so cards do not look empty', () => {
+    const display = cardTrafficDisplay(stat({ count_1h: 0, count_24h: 19 }), 'normal')
+    expect(display.value).toBe(19)
+    expect(display.label).toBe('reports in 24h')
+    expect(display.hint).toMatch(/last hour/)
+  })
+
+  it('leads with the last hour when reports are active', () => {
+    const display = cardTrafficDisplay(stat({ count_1h: 9, count_24h: 22 }), 'elevated')
+    expect(display.value).toBe(9)
+    expect(display.label).toBe('reports last hour')
+  })
+})
+
+describe('historyChip', () => {
+  it('shows older weekly volume without implying it is live', () => {
+    expect(historyChip(stat({ count_24h: 19, count_7d: 154 }))).toBe('+135 earlier this week')
+    expect(historyChip(stat({ count_24h: 20, count_7d: 22 }))).toBeNull()
   })
 })
