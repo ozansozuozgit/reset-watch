@@ -462,7 +462,7 @@ function App() {
           <div className="section-heading">
             <p className="card-label">Community heat</p>
             <h2>Community heat</h2>
-            <p>A lightweight read on whether developers are broadly reporting slowdowns, errors, limit drain, or degraded coding sessions.</p>
+            <p>A lightweight read on whether developers are broadly reporting slowdowns, errors, limit drain, or degraded coding sessions. Shown raw here — these community signals feed the blended <a href="#predictions">Pain Index</a> forecast at the top.</p>
           </div>
           <div className="social-grid">
             {effectiveTopics.length ? effectiveTopics.map(({ topic, incidentName, read }) => {

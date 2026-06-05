@@ -197,13 +197,21 @@ function companyBaseScore(recent: Event[]) {
   return Math.round(max * 0.65 + average * 0.25)
 }
 
-function companyPainScore(recent: Event[], socialTopic?: SocialTopic) {
+export function companyPainScore(recent: Event[], socialTopic?: SocialTopic) {
   const eventScores = recent.map(eventPainScore)
   const officialPain = eventScores.length ? Math.max(...eventScores) : 0
   const avgPain = eventScores.length ? eventScores.reduce((sum, score) => sum + score, 0) / eventScores.length : 0
   const socialHeat = socialTopic?.heat ?? 0
   const socialPain = socialTopic?.pain_chatter ?? 0
-  return Math.round(clamp(officialPain * 0.38 + avgPain * 0.17 + socialHeat * 0.25 + socialPain * 0.20))
+  const blended = officialPain * 0.38 + avgPain * 0.17 + socialHeat * 0.25 + socialPain * 0.20
+  // Responsive floor: when a real official incident AND loud community pain
+  // corroborate each other, historical averaging must not drag the headline
+  // (the most-viewed hero Pain Index) below what both strong signals agree on.
+  // Uncorroborated community noise alone never trips this — it can't inflate the
+  // forecast off a few loud posts.
+  const corroborated = officialPain >= 50 && socialPain >= 58
+  const floor = corroborated ? Math.min(officialPain, socialPain) : 0
+  return Math.round(clamp(Math.max(blended, floor)))
 }
 
 export function buildPredictions(
