@@ -1,13 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { scoreText, summarizeTopic } from './lib/social-score.mjs'
 import { pushSnapshot } from './lib/push-snapshot.mjs'
+import { withRetry, runWithFallback } from './lib/retry.mjs'
 
 const topics = [
   {
     id: 'openai-codex',
     company: 'openai',
     product: 'Codex',
-    queries: ['Codex slow', 'Codex degraded', 'Codex unusable', 'Codex usage limits', 'Codex reset limits'],
+    // Broader symptom + brand queries; precision comes from the score>0 filter in
+    // summarizeTopic, so we cast a wider net than rigid "<product> <symptom>" phrases.
+    queries: ['Codex slow', 'Codex down', 'Codex degraded', 'Codex unusable', 'Codex errors', 'Codex usage limits', 'Codex rate limit', 'OpenAI Codex limits'],
     // Official accounts that announce Codex limit/quota changes directly.
     official_handles: ['thsottiaux'],
   },
@@ -15,7 +18,7 @@ const topics = [
     id: 'anthropic-claude-code',
     company: 'anthropic',
     product: 'Claude Code',
-    queries: ['Claude Code slow', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code usage limits', 'Claude Code reset limits'],
+    queries: ['Claude Code slow', 'Claude Code down', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code errors', 'Claude Code usage limits', 'Claude Code rate limit', 'Anthropic limits'],
     official_handles: ['AlexAlbert_', 'AnthropicAI'],
   },
 ]
@@ -45,6 +48,12 @@ async function fetchJson(url, headers = {}) {
   return JSON.parse(await fetchText(url, headers))
 }
 
+// Retrying variants — public endpoints (Reddit/Bluesky/DDG) intermittently
+// 429/5xx a shared CI runner IP; a couple of backed-off retries recover most of
+// those without a source dropping to empty.
+const fetchJsonR = (url, headers) => withRetry(() => fetchJson(url, headers), { attempts: 2, delayMs: 500 })
+const fetchTextR = (url, headers) => withRetry(() => fetchText(url, headers), { attempts: 2, delayMs: 500 })
+
 function stripHtml(value = '') {
   return value.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
 }
@@ -62,9 +71,9 @@ function normalizeUrl(url = '') {
 
 async function hnSearch(topic) {
   const items = []
-  for (const query of topic.queries.slice(0, 3)) {
+  for (const query of topic.queries.slice(0, 4)) {
     const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story,comment&hitsPerPage=20`
-    const data = await fetchJson(url)
+    const data = await fetchJsonR(url)
     for (const hit of data.hits ?? []) {
       const title = stripHtml(hit.title || hit.comment_text || hit.story_title || '')
       if (!title) continue
@@ -84,9 +93,9 @@ async function hnSearch(topic) {
 
 async function redditSearch(topic) {
   const items = []
-  for (const query of topic.queries.slice(0, 3)) {
+  for (const query of topic.queries.slice(0, 4)) {
     const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&t=week&limit=20`
-    const data = await fetchJson(url)
+    const data = await fetchJsonR(url)
     for (const child of data.data?.children ?? []) {
       const post = child.data
       const title = stripHtml(`${post.title || ''} ${post.selftext || ''}`)
@@ -107,9 +116,9 @@ async function redditSearch(topic) {
 
 async function blueskySearch(topic) {
   const items = []
-  for (const query of topic.queries.slice(0, 3)) {
+  for (const query of topic.queries.slice(0, 6)) {
     const url = `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=20&sort=latest`
-    const data = await fetchJson(url)
+    const data = await fetchJsonR(url)
     for (const post of data.posts ?? []) {
       const text = stripHtml(post.record?.text || '')
       if (!text) continue
@@ -133,7 +142,7 @@ async function duckDuckGoSiteSearch(topic, site, source) {
   const items = []
   const queries = topic.queries.map((query) => `site:${site} ${query}`).slice(0, 4)
   for (const query of queries) {
-    const html = await fetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { accept: 'text/html' })
+    const html = await fetchTextR(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { accept: 'text/html' })
     const matches = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0, 8)
     for (const match of matches) {
       const title = stripHtml(match[2])
@@ -162,7 +171,7 @@ async function officialProfileSearch(topic, source = 'official-announcement') {
   const items = []
   for (const handle of topic.official_handles) {
     const query = `site:x.com/${handle} reset OR limits OR cleared OR fixed`
-    const html = await fetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { accept: 'text/html' })
+    const html = await fetchTextR(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { accept: 'text/html' })
     const matches = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0, 5)
     for (const match of matches) {
       const title = stripHtml(match[2])
@@ -210,23 +219,27 @@ const snapshot = {
 
 const overrides = await loadOverrides()
 
+const now = new Date(snapshot.generated_at)
+
 for (const topic of topics) {
   const rawItems = []
+  // Real free APIs (timestamped, higher recall) run first; the DuckDuckGo snippet
+  // scrape is the won't-block fallback when a primary 403s/empties from CI.
   const fetchers = [
-    hnSearch,
-    (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'x.com', 'x-search-snippet'),
-    (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'reddit.com', 'reddit-search-snippet'),
-    (targetTopic) => duckDuckGoSiteSearch(targetTopic, 'bsky.app', 'bluesky-search-snippet'),
-    (targetTopic) => officialProfileSearch(targetTopic),
+    { name: 'hn', run: hnSearch },
+    { name: 'x-search-snippet', run: (t) => duckDuckGoSiteSearch(t, 'x.com', 'x-search-snippet') },
+    { name: 'reddit', run: (t) => runWithFallback(() => redditSearch(t), () => duckDuckGoSiteSearch(t, 'reddit.com', 'reddit-search-snippet')) },
+    { name: 'bluesky', run: (t) => runWithFallback(() => blueskySearch(t), () => duckDuckGoSiteSearch(t, 'bsky.app', 'bluesky-search-snippet')) },
+    { name: 'official-announcement', run: officialProfileSearch },
   ]
   for (const fetcher of fetchers) {
     try {
-      rawItems.push(...await fetcher(topic))
+      rawItems.push(...await fetcher.run(topic))
     } catch (error) {
       snapshot.errors.push({ topic: topic.id, source: fetcher.name, message: error instanceof Error ? error.message : String(error) })
     }
   }
-  snapshot.topics.push(summarizeTopic(topic, rawItems, overrides))
+  snapshot.topics.push(summarizeTopic(topic, rawItems, overrides, now))
 }
 
 await writeFile('public/data/social-snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`)

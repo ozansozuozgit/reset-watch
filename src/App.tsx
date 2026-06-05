@@ -5,7 +5,7 @@ import { liveEventsFromSnapshot, loadJson, loadSnapshot, mergeEvents, type Reset
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction, type ResetSignal } from './model'
 import { IncidentCards } from './IncidentCards'
 import { fetchReportStats, fetchSnapshot } from './supabase'
-import { blendCondition, communityHeatRead, deriveStatus, tierIsWorse, type StatusTier } from './incident-model'
+import { blendCondition, communityHeatRead, deriveStatus, effectiveHeat, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, providerById, RESET_SYMPTOM, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
@@ -185,6 +185,23 @@ function App() {
     return map
   }, [snapshot])
 
+  // One per-topic read shared by the Community heat card and the hero "hot
+  // topics" count, so the two never disagree. `read` drives the card tone
+  // (hot / corroborated / calm); `effectiveHeat` floors the heat number up when
+  // an official incident or elevated on-site reports exist, so a quiet-chatter
+  // topic still counts as hot during a real incident.
+  const effectiveTopics = useMemo(() => {
+    return (socialSnapshot?.topics ?? []).map((topic) => {
+      const provider = PROVIDERS.find((p) => p.company === topic.company && p.product === topic.product)
+      const incidentName = provider ? corroboration[provider.id] : undefined
+      const reportStat = provider ? reportStats.find((s) => s.provider === provider.id) : undefined
+      const reportTier = reportStat ? deriveStatus(reportStat).tier : 'normal'
+      const officialIncident = Boolean(incidentName)
+      const read = communityHeatRead({ socialQuiet: topic.heat === 0 && topic.volume === 0, officialIncident, reportTier })
+      return { topic, incidentName, read, effectiveHeat: effectiveHeat({ chatterHeat: topic.heat, officialIncident, reportTier }) }
+    })
+  }, [socialSnapshot, corroboration, reportStats])
+
   const liveEvents = useMemo(() => liveEventsFromSnapshot(snapshot, resetFeed), [snapshot, resetFeed])
   const events = useMemo(() => mergeEvents(seedEvents, liveEvents), [liveEvents])
   const stat = useMemo(() => metrics(events), [events])
@@ -216,7 +233,9 @@ function App() {
     .sort((a, b) => +new Date(b.resetConfirmedAt ?? 0) - +new Date(a.resetConfirmedAt ?? 0))[0]
   const latestIncident = recentLiveEvents[0]
   const highFitCount = recentLiveEvents.filter((event) => eventResetProbability(event) >= 58).length
-  const socialHotCount = socialSnapshot?.topics.filter((topic) => topic.heat >= 58).length ?? 0
+  // Hot-topic count uses effective heat, so a product with an active incident or
+  // elevated reports but quiet social chatter still registers.
+  const socialHotCount = effectiveTopics.filter((t) => t.effectiveHeat >= 58).length
 
   // Pain score per reportable provider, mapped from its company's prediction.
   const painByProvider = useMemo(() => {
@@ -446,19 +465,9 @@ function App() {
             <p>A lightweight read on whether developers are broadly reporting slowdowns, errors, limit drain, or degraded coding sessions.</p>
           </div>
           <div className="social-grid">
-            {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => {
-              // The card reads only social chatter, but it must agree with the
-              // live status above: never show "all calm" while an official
-              // incident or elevated on-site reports exist for the same product.
-              const provider = PROVIDERS.find((p) => p.company === topic.company && p.product === topic.product)
-              const incidentName = provider ? corroboration[provider.id] : undefined
-              const reportStat = provider ? reportStats.find((s) => s.provider === provider.id) : undefined
-              const reportTier = reportStat ? deriveStatus(reportStat).tier : 'normal'
-              const read = communityHeatRead({
-                socialQuiet: topic.heat === 0 && topic.volume === 0,
-                officialIncident: Boolean(incidentName),
-                reportTier,
-              })
+            {effectiveTopics.length ? effectiveTopics.map(({ topic, incidentName, read }) => {
+              // Tone comes from the shared read so the card agrees with the hero
+              // count: never "all calm" while an incident / elevated reports exist.
               const calm = read.tone === 'calm'
               const corroborated = read.tone === 'corroborated'
               const hot = read.tone === 'hot'

@@ -21,3 +21,19 @@ export async function withRetry(fn, { attempts = 3, delayMs = 800 } = {}) {
   }
   throw lastError
 }
+
+// Try a primary source, fall back to a secondary when the primary throws or
+// returns nothing. Used so a free real API (Reddit/Bluesky) that 403s or comes
+// up empty from a CI runner IP degrades to the DuckDuckGo snippet scrape instead
+// of zeroing the topic. A throw from the fallback propagates to the caller so it
+// can be recorded in snapshot.errors.
+export async function runWithFallback(primary, fallback) {
+  let result
+  try {
+    result = await primary()
+  } catch {
+    result = null
+  }
+  if (Array.isArray(result) && result.length > 0) return result
+  return fallback()
+}

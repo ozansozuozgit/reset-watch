@@ -125,6 +125,29 @@ export function communityHeatRead(args: {
   return { tone: 'calm', corroboratedBy: null }
 }
 
+// The honest heat number: public-chatter heat floored up when independent
+// signals (an official incident or elevated on-site reports) say a product is
+// struggling, so a sparse-chatter topic still reads as hot during a real
+// incident. A floor (not a sum) — chatter that already exceeds the floor wins,
+// avoiding double-counting. Pairs with communityHeatRead (card tone) and is used
+// for the hero "hot topics" count; predictions already fold in official
+// incidents via officialPain, so they intentionally keep raw chatter heat.
+export const INCIDENT_HEAT_FLOOR = 60
+export const ELEVATED_REPORTS_HEAT_FLOOR = 60
+export const SPIKE_REPORTS_HEAT_FLOOR = 80
+
+export function effectiveHeat(args: {
+  chatterHeat: number
+  officialIncident: boolean
+  reportTier: StatusTier
+}): number {
+  const floors = [args.chatterHeat]
+  if (args.officialIncident) floors.push(INCIDENT_HEAT_FLOOR)
+  if (args.reportTier === 'spike') floors.push(SPIKE_REPORTS_HEAT_FLOOR)
+  else if (args.reportTier === 'elevated') floors.push(ELEVATED_REPORTS_HEAT_FLOOR)
+  return Math.max(0, Math.min(100, Math.round(Math.max(...floors))))
+}
+
 // Blend crowdsourced reports with community pain and official incidents into
 // one honest condition. We take the HIGHEST severity across signals, so a
 // quiet report feed (0 reports — common with no traffic) can never pull the
