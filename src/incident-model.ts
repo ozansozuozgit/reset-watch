@@ -96,6 +96,35 @@ export function painTier(pain: number): StatusTier {
   return 'normal'
 }
 
+// What the Community heat card should display. That card reads a single feed —
+// public social chatter — but it must never declare "all calm" when a stronger,
+// independent signal (an official incident or elevated on-site reports) says the
+// product is struggling, or it contradicts the rest of the page.
+//   - 'hot'         : social chatter is live → show the heat read.
+//   - 'corroborated': social is quiet, but an incident / elevated reports are
+//                     active → "quiet on social, but not all clear".
+//   - 'calm'        : social is quiet AND nothing else is wrong → true all-clear.
+// The official incident is the most concrete evidence, so it wins attribution
+// over on-site reports when both are present.
+export type CommunityHeatTone = 'hot' | 'corroborated' | 'calm'
+export type CommunityHeatCorroborator = 'incident' | 'reports'
+
+export type CommunityHeatRead = {
+  tone: CommunityHeatTone
+  corroboratedBy: CommunityHeatCorroborator | null
+}
+
+export function communityHeatRead(args: {
+  socialQuiet: boolean
+  officialIncident: boolean
+  reportTier: StatusTier
+}): CommunityHeatRead {
+  if (!args.socialQuiet) return { tone: 'hot', corroboratedBy: null }
+  if (args.officialIncident) return { tone: 'corroborated', corroboratedBy: 'incident' }
+  if (args.reportTier !== 'normal') return { tone: 'corroborated', corroboratedBy: 'reports' }
+  return { tone: 'calm', corroboratedBy: null }
+}
+
 // Blend crowdsourced reports with community pain and official incidents into
 // one honest condition. We take the HIGHEST severity across signals, so a
 // quiet report feed (0 reports — common with no traffic) can never pull the

@@ -5,7 +5,7 @@ import { liveEventsFromSnapshot, loadJson, loadSnapshot, mergeEvents, type Reset
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction, type ResetSignal } from './model'
 import { IncidentCards } from './IncidentCards'
 import { fetchReportStats, fetchSnapshot } from './supabase'
-import { blendCondition, tierIsWorse, type StatusTier } from './incident-model'
+import { blendCondition, communityHeatRead, deriveStatus, tierIsWorse, type StatusTier } from './incident-model'
 import { PROVIDERS, providerById, RESET_SYMPTOM, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
@@ -447,18 +447,35 @@ function App() {
           </div>
           <div className="social-grid">
             {socialSnapshot?.topics.length ? socialSnapshot.topics.map((topic) => {
-              const quiet = topic.heat === 0 && topic.volume === 0
+              // The card reads only social chatter, but it must agree with the
+              // live status above: never show "all calm" while an official
+              // incident or elevated on-site reports exist for the same product.
+              const provider = PROVIDERS.find((p) => p.company === topic.company && p.product === topic.product)
+              const incidentName = provider ? corroboration[provider.id] : undefined
+              const reportStat = provider ? reportStats.find((s) => s.provider === provider.id) : undefined
+              const reportTier = reportStat ? deriveStatus(reportStat).tier : 'normal'
+              const read = communityHeatRead({
+                socialQuiet: topic.heat === 0 && topic.volume === 0,
+                officialIncident: Boolean(incidentName),
+                reportTier,
+              })
+              const calm = read.tone === 'calm'
+              const corroborated = read.tone === 'corroborated'
+              const hot = read.tone === 'hot'
+              const corroBasis = read.corroboratedBy === 'incident'
+                ? 'No social chatter yet — but an official incident is live'
+                : 'No social chatter yet — but on-site reports are elevated'
               return (
-              <article className={`social-card ${quiet ? 'quiet' : ''}`} key={topic.id}>
+              <article className={`social-card ${calm ? 'quiet' : ''} ${corroborated ? 'corroborated' : ''}`} key={topic.id}>
                 <div className="social-top">
                   <div>
                     <p className="card-label">{topic.product}</p>
-                    <h3>{quiet ? 'Quiet' : `${topic.heat}/100 heat`}</h3>
-                    <span>{quiet ? 'No public complaints right now' : communityBasis(topic.volume, topic.heat)}</span>
+                    <h3>{hot ? `${topic.heat}/100 heat` : calm ? 'Quiet' : 'Quiet on social'}</h3>
+                    <span>{hot ? communityBasis(topic.volume, topic.heat) : calm ? 'No public complaints right now' : corroBasis}</span>
                   </div>
-                  <span className={`pill ${quiet ? 'calm' : scoreTone(topic.heat)}`}>{quiet ? 'all calm' : `${topic.pain_chatter}/100 pain`}</span>
+                  <span className={`pill ${calm ? 'calm' : corroborated ? 'likely' : scoreTone(topic.heat)}`}>{calm ? 'all calm' : corroborated ? 'not all clear' : `${topic.pain_chatter}/100 pain`}</span>
                 </div>
-                {!quiet && (
+                {hot && (
                   <>
                     <div className="tags">
                       {topic.top_terms.slice(0, 8).map((term) => <span key={term}>{term}</span>)}
@@ -473,6 +490,9 @@ function App() {
                       ))}
                     </div>
                   </>
+                )}
+                {corroborated && (
+                  <p className="source-line">{incidentName ? `Cross-checked: ${incidentName}` : 'Cross-checked against on-site reports above.'}</p>
                 )}
               </article>
               )
