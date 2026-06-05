@@ -1,13 +1,4 @@
 {
-  "generated_at": "2026-06-03T00:00:00.000Z",
-  "topics": [
-    {
-      "id": "openai-codex",
-      "product": "Codex",
-      "heat_boost": 80,
-      "pain_chatter_boost": 80,
-      "reset_chatter_boost": 5,
-      "note": "Codex degradation chatter observed manually; keep this file free/manual so the service does not depend on paid social APIs. Remove or lower when chatter cools."
-    }
-  ]
+  "generated_at": "2026-06-05T20:15:00.000Z",
+  "topics": []
 }
