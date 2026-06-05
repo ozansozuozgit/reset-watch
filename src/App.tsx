@@ -315,7 +315,6 @@ function App() {
           <a href="#predictions">Forecast</a>
           <a href="#community-heat">Community</a>
           <a href="#live-incidents">Incidents</a>
-          <a href="#method">Method</a>
         </nav>
       </header>
 
@@ -581,13 +580,11 @@ function App() {
         <section id="method" className="section split">
           <div>
             <p className="card-label">Method</p>
-            <h2>What AI Down Detector looks for</h2>
-            <p className="muted">The strongest reset trigger is a root-caused bug that depleted paid limits incorrectly. General errors are weak reset signals but strong pain signals.</p>
+            <h2>How this works</h2>
+            <p className="muted">The strongest reset signal is a root-caused metering bug that drained paid limits. Generic outages raise pain long before they raise reset odds.</p>
           </div>
           <ol className="signal-list">
             {watchlistSignals.map((signal) => <li key={signal}>{signal}</li>)}
-            <li>Community heat looks for public clusters around degraded, slow, unusable, limit-drain, and reset language.</li>
-            <li>Reset odds and pain index are intentionally separate so “Codex feels cooked” does not automatically imply “reset incoming.”</li>
           </ol>
         </section>
 
@@ -661,6 +658,7 @@ function App() {
         <a href="https://status.claude.com" target="_blank" rel="noreferrer">Anthropic status</a>
         <a href="https://status.openai.com" target="_blank" rel="noreferrer">OpenAI status</a>
         <a href="#status">Report a problem</a>
+        <a href="#method">How this works</a>
         <a href="https://github.com/ozansozuozgit/reset-watch" target="_blank" rel="noreferrer">Contribute on GitHub</a>
       </footer>
     </>

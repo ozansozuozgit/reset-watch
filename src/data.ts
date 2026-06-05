@@ -194,10 +194,8 @@ export const failurePoints = [
 ]
 
 export const watchlistSignals = [
-  'Status incident mentions Codex, Claude Code, rate limits, quota, usage, cache, compaction, or metering.',
-  'Engineers acknowledge a root cause rather than generic “elevated errors.”',
-  'Community reports cluster around “limits drained too fast” across paid plans.',
-  'Incident affects coding surfaces where failed attempts can burn scarce allowance.',
-  'A fix ships with a concrete version or rollback note.',
-  'Reset language appears within 0–72h after resolution; weaker signal up to 7 days.',
+  'Official status incidents with quota, metering, compaction, or root-cause language — not generic “elevated errors” alone.',
+  'Public chatter clusters on X, forums, and social — pain terms and reset terms are scored separately.',
+  'Crowdsourced “is it down?” reports compared to a normal hourly baseline; weekly totals never drive the live tier.',
+  'Reset odds and pain index stay separate — developers feeling it does not automatically mean a make-good reset is coming.',
 ]
