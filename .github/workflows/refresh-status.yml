@@ -1,4 +1,8 @@
-name: Refresh public signal snapshots
+name: Refresh status snapshots
+
+# Official status/incident + auto-reset snapshots are free, so they refresh hourly.
+# The Tavily-powered social search runs less often (refresh-social.yml) to stay
+# within a narrow monthly credit budget.
 
 on:
   workflow_dispatch:
@@ -15,10 +19,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # Fetchers append each snapshot to Supabase (signal_snapshots) instead of
-      # committing JSON files back into the repo. No commit/push, no redeploy —
-      # the live site reads the latest row at runtime.
-      - run: npm run fetch:data
+      # Appends status/auto-reset snapshots to Supabase (signal_snapshots) — no
+      # commit/redeploy; the live site reads the latest row at runtime.
+      - run: npm run fetch:status
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

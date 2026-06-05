@@ -2,14 +2,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { scoreText, summarizeTopic } from './lib/social-score.mjs'
 import { pushSnapshot } from './lib/push-snapshot.mjs'
 import { withRetry, runWithFallback } from './lib/retry.mjs'
+import { tavilySearchRequest, normalizeTavilyResults, withinBudget, monthKey, TAVILY_COST } from './lib/tavily.mjs'
+import { readTavilyUsage, writeTavilyUsage } from './lib/tavily-budget.mjs'
 
 const topics = [
   {
     id: 'openai-codex',
     company: 'openai',
     product: 'Codex',
-    // Broader symptom + brand queries; precision comes from the score>0 filter in
-    // summarizeTopic, so we cast a wider net than rigid "<product> <symptom>" phrases.
+    // One Tavily query (semantic, free domain filtering). The free-fallback
+    // scrapers use the keyword list below; precision comes from the score>0 filter.
+    tavily_query: 'OpenAI Codex slow, down, broken, errors, degraded, rate limit, usage limits, outage',
     queries: ['Codex slow', 'Codex down', 'Codex degraded', 'Codex unusable', 'Codex errors', 'Codex usage limits', 'Codex rate limit', 'OpenAI Codex limits'],
     // Official accounts that announce Codex limit/quota changes directly.
     official_handles: ['thsottiaux'],
@@ -18,10 +21,20 @@ const topics = [
     id: 'anthropic-claude-code',
     company: 'anthropic',
     product: 'Claude Code',
+    tavily_query: 'Claude Code (Anthropic) slow, down, broken, errors, degraded, rate limit, usage limits, outage',
     queries: ['Claude Code slow', 'Claude Code down', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code errors', 'Claude Code usage limits', 'Claude Code rate limit', 'Anthropic limits'],
     official_handles: ['AlexAlbert_', 'AnthropicAI'],
   },
 ]
+
+// Tavily config. One basic search per topic (1 credit). The monthly cap is the
+// hard guarantee against overspend (the every-4h cron alone lands ~360/mo); when
+// it's reached, or no key is set, the search degrades to the free scrapers.
+const TAVILY_DOMAINS = ['reddit.com', 'x.com', 'twitter.com', 'bsky.app', 'news.ycombinator.com']
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY
+// Robust against an unset CI variable (which arrives as ''): Number('') is 0,
+// which would disable Tavily, so fall back to 700 unless a positive value is set.
+const TAVILY_MONTHLY_CAP = Number(process.env.TAVILY_MONTHLY_CAP) > 0 ? Number(process.env.TAVILY_MONTHLY_CAP) : 700
 
 const timeout = 9000
 
@@ -91,51 +104,38 @@ async function hnSearch(topic) {
   return items
 }
 
-async function redditSearch(topic) {
-  const items = []
-  for (const query of topic.queries.slice(0, 4)) {
-    const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&t=week&limit=20`
-    const data = await fetchJsonR(url)
-    for (const child of data.data?.children ?? []) {
-      const post = child.data
-      const title = stripHtml(`${post.title || ''} ${post.selftext || ''}`)
-      if (!title.trim()) continue
-      const scored = scoreText(title)
-      items.push({
-        source: 'reddit',
-        title: stripHtml(post.title || title).slice(0, 240),
-        url: post.permalink ? `https://www.reddit.com${post.permalink}` : `https://www.reddit.com/search/?q=${encodeURIComponent(query)}`,
-        published_at: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : undefined,
-        score: scored.score,
-        matched_terms: [...new Set([...scored.pain, ...scored.reset])],
-      })
-    }
+// Primary social source: one budgeted Tavily search across the social web. Throws
+// (so runWithFallback degrades to the free scrapers) when the key is missing or the
+// monthly cap would be exceeded. Credits are only counted on a successful call.
+async function tavilySearch(topic, budget) {
+  if (!budget.key) throw new Error('TAVILY_API_KEY not set')
+  if (!withinBudget(budget.used, budget.spent, TAVILY_COST, budget.cap)) {
+    throw new Error(`monthly cap reached (${budget.used + budget.spent}/${budget.cap})`)
   }
-  return items
-}
-
-async function blueskySearch(topic) {
-  const items = []
-  for (const query of topic.queries.slice(0, 6)) {
-    const url = `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=20&sort=latest`
-    const data = await fetchJsonR(url)
-    for (const post of data.posts ?? []) {
-      const text = stripHtml(post.record?.text || '')
-      if (!text) continue
-      const scored = scoreText(text)
-      const handle = post.author?.handle
-      const rkey = post.uri?.split('/').pop()
-      items.push({
-        source: 'bluesky',
-        title: text.slice(0, 240),
-        url: handle && rkey ? `https://bsky.app/profile/${handle}/post/${rkey}` : 'https://bsky.app/search',
-        published_at: post.record?.createdAt,
-        score: scored.score,
-        matched_terms: [...new Set([...scored.pain, ...scored.reset])],
-      })
+  const req = tavilySearchRequest(topic.tavily_query, {
+    apiKey: budget.key,
+    includeDomains: TAVILY_DOMAINS,
+    maxResults: 20,
+    searchDepth: 'basic',
+    days: 7,
+  })
+  const data = await withRetry(async () => {
+    const response = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body, signal: AbortSignal.timeout(timeout) })
+    if (!response.ok) throw new Error(`Tavily ${response.status} ${response.statusText}`)
+    return response.json()
+  }, { attempts: 2, delayMs: 600 })
+  budget.spent += TAVILY_COST
+  return normalizeTavilyResults(data).map((post) => {
+    const scored = scoreText(post.text)
+    return {
+      source: 'tavily',
+      title: post.title,
+      url: post.url,
+      published_at: post.published_at,
+      score: scored.score,
+      matched_terms: [...new Set([...scored.pain, ...scored.reset])],
     }
-  }
-  return items
+  })
 }
 
 async function duckDuckGoSiteSearch(topic, site, source) {
@@ -156,6 +156,27 @@ async function duckDuckGoSiteSearch(topic, site, source) {
         score: scored.score,
         matched_terms: [...new Set([...scored.pain, ...scored.reset])],
       })
+    }
+  }
+  return items
+}
+
+// Free fallback bundle used when Tavily is unavailable or over budget: HN Algolia
+// plus DuckDuckGo site snippets for X/Reddit/Bluesky. Best-effort — one source
+// failing must not sink the rest — so each is wrapped individually.
+async function freeSocialSearch(topic) {
+  const items = []
+  const sources = [
+    hnSearch,
+    (t) => duckDuckGoSiteSearch(t, 'x.com', 'x-search-snippet'),
+    (t) => duckDuckGoSiteSearch(t, 'reddit.com', 'reddit-search-snippet'),
+    (t) => duckDuckGoSiteSearch(t, 'bsky.app', 'bluesky-search-snippet'),
+  ]
+  for (const source of sources) {
+    try {
+      items.push(...await source(topic))
+    } catch {
+      // best-effort fallback; a blocked free source is expected from CI
     }
   }
   return items
@@ -206,6 +227,7 @@ await mkdir('public/data', { recursive: true })
 const snapshot = {
   generated_at: new Date().toISOString(),
   sources: [
+    { name: 'tavily', url: 'https://api.tavily.com/search' },
     { name: 'hn', url: 'https://hn.algolia.com/api' },
     { name: 'x-search-snippet', url: 'https://html.duckduckgo.com/html/?q=site:x.com' },
     { name: 'reddit-search-snippet', url: 'https://html.duckduckgo.com/html/?q=site:reddit.com' },
@@ -221,23 +243,26 @@ const overrides = await loadOverrides()
 
 const now = new Date(snapshot.generated_at)
 
+// Monthly Tavily credit budget, read once and accumulated across topics this run,
+// then persisted so the cap holds across runs (and manual workflow triggers).
+const tavilyMonth = monthKey(now)
+const budget = { key: TAVILY_API_KEY, cap: TAVILY_MONTHLY_CAP, used: await readTavilyUsage(tavilyMonth), spent: 0 }
+
 for (const topic of topics) {
   const rawItems = []
-  // Real free APIs (timestamped, higher recall) run first; the DuckDuckGo snippet
-  // scrape is the won't-block fallback when a primary 403s/empties from CI.
-  const fetchers = [
-    { name: 'hn', run: hnSearch },
-    { name: 'x-search-snippet', run: (t) => duckDuckGoSiteSearch(t, 'x.com', 'x-search-snippet') },
-    { name: 'reddit', run: (t) => runWithFallback(() => redditSearch(t), () => duckDuckGoSiteSearch(t, 'reddit.com', 'reddit-search-snippet')) },
-    { name: 'bluesky', run: (t) => runWithFallback(() => blueskySearch(t), () => duckDuckGoSiteSearch(t, 'bsky.app', 'bluesky-search-snippet')) },
-    { name: 'official-announcement', run: officialProfileSearch },
-  ]
-  for (const fetcher of fetchers) {
-    try {
-      rawItems.push(...await fetcher.run(topic))
-    } catch (error) {
-      snapshot.errors.push({ topic: topic.id, source: fetcher.name, message: error instanceof Error ? error.message : String(error) })
-    }
+  // Primary: one budgeted Tavily search across the social web. Degrades to the
+  // free scrapers when the key is missing or the monthly cap is reached.
+  const social = await runWithFallback(
+    () => tavilySearch(topic, budget),
+    () => freeSocialSearch(topic),
+    (msg) => console.warn(`[social] tavily→free fallback for ${topic.id}: ${msg}`),
+  )
+  rawItems.push(...social)
+  // Official-handle reset announcements (free, always run).
+  try {
+    rawItems.push(...await officialProfileSearch(topic))
+  } catch (error) {
+    snapshot.errors.push({ topic: topic.id, source: 'official-announcement', message: error instanceof Error ? error.message : String(error) })
   }
   snapshot.topics.push(summarizeTopic(topic, rawItems, overrides, now))
 }
@@ -245,4 +270,10 @@ for (const topic of topics) {
 await writeFile('public/data/social-snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`)
 console.log(`Wrote ${snapshot.topics.length} social topics to public/data/social-snapshot.json`)
 await pushSnapshot('social', snapshot)
+
+// Persist the month's Tavily spend (only when we actually spent).
+if (budget.spent > 0) {
+  await writeTavilyUsage(tavilyMonth, budget.used + budget.spent)
+  console.log(`[tavily] spent ${budget.spent} credit(s) this run; month total ${budget.used + budget.spent}/${budget.cap}`)
+}
 if (snapshot.errors.length) console.warn('Social fetch errors:', snapshot.errors)

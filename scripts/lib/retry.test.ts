@@ -48,4 +48,22 @@ describe('runWithFallback', () => {
     const result = await runWithFallback(async () => [], async () => ['fb'])
     expect(result).toEqual(['fb'])
   })
+
+  it('reports the primary failure reason (throw) before falling back', async () => {
+    const issues: string[] = []
+    await runWithFallback(async () => { throw new Error('budget reached') }, async () => ['fb'], (m: string) => issues.push(m))
+    expect(issues).toEqual(['budget reached'])
+  })
+
+  it('reports an empty primary result before falling back', async () => {
+    const issues: string[] = []
+    await runWithFallback(async () => [], async () => ['fb'], (m: string) => issues.push(m))
+    expect(issues[0]).toMatch(/0 items/i)
+  })
+
+  it('does not report an issue when the primary succeeds', async () => {
+    const issues: string[] = []
+    await runWithFallback(async () => ['a'], async () => ['fb'], (m: string) => issues.push(m))
+    expect(issues).toEqual([])
+  })
 })
