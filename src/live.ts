@@ -183,3 +183,15 @@ export async function loadJson<T>(path: string): Promise<T | null> {
     return null
   }
 }
+
+// Prefer the live Supabase snapshot; fall back to the static /data file when
+// Supabase is unconfigured or empty (local dev, demo mode, or a transient miss).
+// Keeping this here makes the try-then-fallback decision unit-testable.
+export async function loadSnapshot<T>(
+  fromSupabase: () => Promise<T | null>,
+  fromFile: () => Promise<T | null>,
+): Promise<T | null> {
+  const live = await fromSupabase()
+  if (live) return live
+  return fromFile()
+}
