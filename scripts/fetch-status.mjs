@@ -1,5 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pushSnapshot } from './lib/push-snapshot.mjs'
+import { withRetry } from './lib/retry.mjs'
+
+const USER_AGENT = 'ResetWatch/1.0 free public-signal monitor (+https://github.com/ozansozuozgit/reset-watch)'
 
 const sources = [
   ['openai', 'https://status.openai.com/api/v2/incidents.json'],
@@ -23,9 +26,14 @@ function inferProduct(source, name, components) {
 }
 
 async function fetchJson(name, url) {
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) throw new Error(`${name} ${response.status} ${response.statusText}`)
-  return response.json()
+  // status.claude.com (Atlassian Statuspage / CloudFront) intermittently 405s the
+  // shared GitHub Actions runner IP. Retry idempotent GETs so a transient reject
+  // doesn't silently drop a provider's incidents from the snapshot.
+  return withRetry(async () => {
+    const response = await fetch(url, { headers: { accept: 'application/json', 'user-agent': USER_AGENT } })
+    if (!response.ok) throw new Error(`${name} ${response.status} ${response.statusText}`)
+    return response.json()
+  }, { attempts: 3, delayMs: 800 })
 }
 
 // Scan an incident's updates for an explicit reset announcement. Returns the
