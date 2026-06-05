@@ -27,7 +27,9 @@ const topics = [
     relevance: ['claude'],
     tavily_query: 'Claude Code (Anthropic) slow, down, broken, errors, degraded, rate limit, usage limits, outage',
     queries: ['Claude Code slow', 'Claude Code down', 'Claude Code degraded', 'Claude Code unusable', 'Claude Code errors', 'Claude Code usage limits', 'Claude Code rate limit', 'Anthropic limits'],
-    official_handles: ['AlexAlbert_', 'AnthropicAI'],
+    // ClaudeDevs: primary reset/limit announcements for Claude Code.
+    // trq212: Thariq — several historical resets landed on his account first.
+    official_handles: ['ClaudeDevs', 'trq212', 'AlexAlbert_', 'AnthropicAI'],
   },
 ]
 

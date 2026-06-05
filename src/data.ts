@@ -43,7 +43,7 @@ export const companies: Company[] = [
     name: 'Anthropic',
     products: ['Claude Code', 'Claude.ai', 'Claude API'],
     statusUrl: 'https://status.claude.com',
-    resetChannels: ['Claude Code team posts', 'Anthropic engineers on X', 'status.claude.com'],
+    resetChannels: ['@ClaudeDevs on X', 'Anthropic engineers on X', 'status.claude.com'],
     publicSignalQuality: 74,
   },
   {
