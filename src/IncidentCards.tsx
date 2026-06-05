@@ -1,16 +1,14 @@
 import { useState } from 'react'
-import { blendCondition, TIER_COPY, type ConditionDriver } from './incident-model'
-import { ONE_TAP_SYMPTOM, PROVIDERS, RESET_SYMPTOM, type ProviderId, type ReportStat, type SymptomId } from './reports'
+import {
+  cardTrafficDisplay,
+  historyChip,
+  liveStatusNote,
+  rankProviderReads,
+  TIER_COPY,
+  type ProviderLiveRead,
+} from './incident-model'
+import { ONE_TAP_SYMPTOM, providerById, RESET_SYMPTOM, type ProviderId, type SymptomId } from './reports'
 import { isConfigured, submitReport } from './supabase'
-
-const EMPTY_STAT = (provider: ProviderId): ReportStat => ({
-  provider,
-  count_1h: 0,
-  count_24h: 0,
-  count_7d: 0,
-  symptom_breakdown: {},
-  hourly_buckets: [],
-})
 
 type ReportState =
   | { kind: 'idle' }
@@ -19,47 +17,36 @@ type ReportState =
   | { kind: 'cooldown' }
   | { kind: 'error' }
 
-// Sparse integer counts read better as bars than a floating line.
 function Sparkline({ buckets }: { buckets: { t: string; c: number }[] }) {
-  if (buckets.length === 0) {
-    return <div className="spark-bars empty" aria-hidden="true" />
-  }
-  const counts = buckets.map((b) => b.c)
+  const counts = buckets.length > 0 ? buckets.map((b) => b.c) : Array.from({ length: 24 }, () => 0)
   const max = Math.max(1, ...counts)
+  const peak = Math.max(...counts)
   return (
-    <div className="spark-bars" aria-hidden="true">
-      {counts.map((c, i) => (
-        <span
-          key={i}
-          className={c > 0 ? 'on' : ''}
-          style={{ height: `${c > 0 ? Math.max(28, (c / max) * 100) : 14}%` }}
-        />
-      ))}
+    <div className="ic-spark-wrap">
+      <div className="spark-bars" aria-hidden="true">
+        {counts.map((c, i) => (
+          <span
+            key={i}
+            className={c > 0 ? 'on' : ''}
+            style={{ height: `${c > 0 ? Math.max(22, (c / max) * 100) : 8}%` }}
+          />
+        ))}
+      </div>
+      <span className="ic-spark-label">
+        {peak > 0 ? `Peak ${peak} reports/hr` : 'No report burst in 24h'}
+      </span>
     </div>
   )
 }
 
-function driverNote(driver: ConditionDriver, incidentName?: string): string | null {
-  switch (driver) {
-    case 'pain':
-      return 'Flagged by community pain'
-    case 'incident':
-      return incidentName ? `Official incident: ${incidentName}` : 'Official incident active'
-    default:
-      return null
-  }
-}
-
 type Props = {
-  stats: ReportStat[]
-  painByProvider: Partial<Record<ProviderId, number>>
+  reads: ProviderLiveRead[]
   corroboration: Partial<Record<ProviderId, string>>
   loading: boolean
   onSubmitted: () => void
 }
 
-export function IncidentCards({ stats, painByProvider, corroboration, loading, onSubmitted }: Props) {
-  const statByProvider = new Map(stats.map((s) => [s.provider, s]))
+export function IncidentCards({ reads, corroboration, loading, onSubmitted }: Props) {
   const [reportState, setReportState] = useState<Partial<Record<ProviderId, ReportState>>>({})
   const [resetState, setResetState] = useState<Partial<Record<ProviderId, ReportState>>>({})
 
@@ -80,13 +67,11 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
     }
   }
 
-  function report(provider: ProviderId) {
+  function submitProblem(provider: ProviderId) {
     if (reportState[provider]?.kind === 'sending') return
     return send(provider, ONE_TAP_SYMPTOM, setReportState)
   }
 
-  // Tier 1 reset detector: "my limits just reset" — the positive signal that
-  // flips the forecast from "likely" to "confirmed".
   function reportReset(provider: ProviderId) {
     if (resetState[provider]?.kind === 'sending') return
     return send(provider, RESET_SYMPTOM, setResetState)
@@ -114,44 +99,47 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
 
   return (
     <div className="incident-cards" aria-label="Live tool status">
-      {PROVIDERS.filter((p) => p.primary).map((provider) => {
-        const stat = statByProvider.get(provider.id) ?? EMPTY_STAT(provider.id)
-        const incidentName = corroboration[provider.id]
-        const condition = blendCondition({
-          stat,
-          pain: painByProvider[provider.id],
-          officialIncident: Boolean(incidentName),
-        })
-        const tier = condition.tier
-        const note = driverNote(condition.driver, incidentName)
-        const rState = reportState[provider.id]
+      {rankProviderReads(reads).map((read) => {
+        const { providerId, stat, report: reportRead } = read
+        const incidentName = corroboration[providerId]
+        const reportTier = reportRead.tier
+        const note = liveStatusNote(read, incidentName)
+        const traffic = cardTrafficDisplay(stat, reportTier)
+        const history = historyChip(stat)
+        const pain = read.pain
+        const rState = reportState[providerId]
         const done = rState?.kind === 'done' || rState?.kind === 'cooldown'
-        const resetRState = resetState[provider.id]
+        const resetRState = resetState[providerId]
         const resetDone = resetRState?.kind === 'done' || resetRState?.kind === 'cooldown'
         const resetReports = Number(stat.symptom_breakdown?.[RESET_SYMPTOM] ?? 0)
-        const weekCount = stat.count_7d ?? stat.count_24h ?? 0
+        const label = providerById(providerId)?.label ?? providerId
 
         return (
-          <article className={`incident-card tier-${tier}`} key={provider.id}>
+          <article className={`incident-card tier-${reportTier}`} key={providerId}>
             <div className="ic-top">
               <div className="ic-id">
                 <span className="ic-dot" aria-hidden="true" />
                 <div>
-                  <h3>{provider.label}</h3>
-                  <span className="ic-tier">{TIER_COPY[tier].label}</span>
+                  <h3>{label}</h3>
+                  <span className="ic-tier">{TIER_COPY[reportTier].label}</span>
                 </div>
               </div>
-              <div className="ic-rate">
-                {/* Fall back to count_24h if count_7d is absent (frontend deploy
-                    landing before the report_stats() migration). */}
-                <b>{loading && weekCount === 0 ? '—' : weekCount}</b>
-                <small>reports / 7d</small>
+              <div className={`ic-rate${reportTier === 'normal' ? ' quiet' : ''}`}>
+                <b>{loading ? '—' : traffic.value}</b>
+                <small>{traffic.label}</small>
+                <span className="ic-rate-hint">{traffic.hint}</span>
               </div>
             </div>
 
-            <div className={`ic-spark tier-${tier}`}>
+            <div className={`ic-spark tier-${reportTier}`}>
               <Sparkline buckets={stat.hourly_buckets} />
-              <span className="ic-24h">{stat.count_24h} in 24h</span>
+            </div>
+
+            <div className="ic-meta">
+              {pain != null && pain >= 58 && (
+                <span className="ic-pain-chip">Pain {pain}/100</span>
+              )}
+              {history && <span className="ic-history-chip">{history}</span>}
             </div>
 
             {note && <p className="ic-note">{note}</p>}
@@ -160,7 +148,7 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
               type="button"
               className="ic-report"
               disabled={!isConfigured || rState?.kind === 'sending' || done}
-              onClick={() => report(provider.id)}
+              onClick={() => submitProblem(providerId)}
             >
               {reportLabel(rState)}
             </button>
@@ -169,7 +157,7 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
               type="button"
               className="ic-report reset"
               disabled={!isConfigured || resetRState?.kind === 'sending' || resetDone}
-              onClick={() => reportReset(provider.id)}
+              onClick={() => reportReset(providerId)}
             >
               {resetLabel(resetRState)}
             </button>
@@ -178,7 +166,9 @@ export function IncidentCards({ stats, painByProvider, corroboration, loading, o
               <p className="ic-badge reset-confirmed">{resetReports} reset {resetReports === 1 ? 'report' : 'reports'} in the last hour</p>
             )}
 
-            {incidentName && <p className="ic-badge corroborated">Cross-checked: {incidentName}</p>}
+            {incidentName && !note?.startsWith('Official incident') && (
+              <p className="ic-badge corroborated">Cross-checked: {incidentName}</p>
+            )}
           </article>
         )
       })}

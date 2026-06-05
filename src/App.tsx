@@ -5,7 +5,15 @@ import { liveEventsFromSnapshot, loadJson, loadSnapshot, mergeEvents, type Reset
 import { attribution, buildPredictions, eventPainScore, eventResetProbability, lagHours, metrics, type Prediction, type ResetSignal } from './model'
 import { IncidentCards } from './IncidentCards'
 import { fetchReportStats, fetchSnapshot } from './supabase'
-import { blendCondition, communityHeatRead, deriveStatus, effectiveHeat, tierIsWorse, type StatusTier } from './incident-model'
+import {
+  buildPrimaryProviderReads,
+  communityHeatRead,
+  deriveStatus,
+  effectiveHeat,
+  pageLiveCondition,
+  pickReportLeadFromReads,
+  TIER_COPY,
+} from './incident-model'
 import { PROVIDERS, providerById, RESET_SYMPTOM, type ProviderId, type ReportStat } from './reports'
 
 const STATS_POLL_MS = 45_000
@@ -248,45 +256,51 @@ function App() {
     return map
   }, [predictions])
 
-  // Honest live condition for the secondary "is it down" module: blends
-  // reports + pain + official incidents, and never reads "normal" just because
-  // the report feed is empty.
-  const liveCondition = useMemo<StatusTier>(() => {
-    const byProvider = new Map(reportStats.map((s) => [s.provider, s]))
-    let worst: StatusTier = 'normal'
-    for (const provider of PROVIDERS.filter((p) => p.primary)) {
-      const { tier } = blendCondition({
-        stat: byProvider.get(provider.id),
-        pain: painByProvider[provider.id],
-        officialIncident: Boolean(corroboration[provider.id]),
-      })
-      if (tierIsWorse(tier, worst)) worst = tier
-    }
-    return worst
-  }, [reportStats, painByProvider, corroboration])
+  const primaryReads = useMemo(
+    () => buildPrimaryProviderReads({ stats: reportStats, painByProvider, corroboration }),
+    [reportStats, painByProvider, corroboration],
+  )
 
-  // Reset-led hero headline (the always-populated, valuable signal). A confirmed
-  // reset overrides the predictive read so visitors don't see "likely" for a
-  // reset that already happened.
+  const reportLead = useMemo(() => pickReportLeadFromReads(primaryReads), [primaryReads])
+  const reportLeadLabel = reportLead ? providerById(reportLead.providerId)?.label : undefined
+  const liveCondition = useMemo(() => pageLiveCondition(primaryReads), [primaryReads])
+
+  const topPainScore = topPainPrediction?.painScore ?? 0
+  const topResetScore = topResetPrediction?.resetScore ?? 0
+
+  // Reset-led hero tone. A confirmed reset overrides the predictive read so
+  // visitors don't see "likely" for a reset that already happened.
   const resetTone = confirmedPrediction ? 'confirmed' : topResetPrediction ? scoreTone(topResetPrediction.resetScore) : 'low'
-  const heroHeadline = confirmedPrediction
-    ? `${confirmedPrediction.companyLabel} just issued a usage reset.`
-    : !topResetPrediction
-      ? 'Watching for usage-reset signals.'
-      : topResetPrediction.label === 'hot'
-        ? `${topResetPrediction.companyLabel} is showing strong reset pressure.`
-        : topResetPrediction.label === 'likely'
-          ? `${topResetPrediction.companyLabel} may be heading for a usage reset.`
-          : topResetPrediction.label === 'watch'
-            ? `Watching ${topResetPrediction.companyLabel} for reset signals.`
-            : 'No strong reset signal right now.'
 
-  const liveConditionCopy =
-    liveCondition === 'spike'
-      ? 'A tool is struggling right now'
-      : liveCondition === 'elevated'
-        ? 'Elevated — worth a look'
-        : 'All quiet right now'
+  const heroHeadline = !dataReady
+    ? 'Reading the latest reset & pain signals…'
+    : confirmedPrediction
+      ? `${confirmedPrediction.companyLabel} just issued a usage reset.`
+      : reportLead?.reportTier === 'spike' && reportLeadLabel
+        ? `${reportLeadLabel} reports are spiking right now.`
+        : reportLead?.reportTier === 'elevated' && reportLeadLabel
+          ? `Elevated reports on ${reportLeadLabel}.`
+          : topPainScore >= 78 && topResetScore < 58
+            ? `${topPainPrediction?.companyLabel ?? 'Providers'} pain is high — reset odds still low.`
+            : !topResetPrediction
+              ? 'Watching for usage-reset signals.'
+              : topResetPrediction.label === 'hot'
+                ? `${topResetPrediction.companyLabel} is showing strong reset pressure.`
+                : topResetPrediction.label === 'likely'
+                  ? `${topResetPrediction.companyLabel} may be heading for a usage reset.`
+                  : topResetPrediction.label === 'watch'
+                    ? `Watching ${topResetPrediction.companyLabel} for reset signals.`
+                    : 'No strong reset signal right now.'
+
+  const liveConditionCopy = TIER_COPY[liveCondition].section
+
+  const signalHealthLabel = !dataReady
+    ? 'loading'
+    : (snapshot?.errors.length || socialSnapshot?.errors.length)
+      ? 'degraded'
+      : snapshot && socialSnapshot
+        ? 'healthy'
+        : 'loading'
 
   return (
     <>
@@ -310,7 +324,7 @@ function App() {
           <div className="eyebrow"><span /> Usage-reset + pain forecast for AI coding tools</div>
           <div className="hero-grid">
             <div>
-              <h1 className="hero-title"><span className={`hero-dot tone-${dataReady ? resetTone : 'low'}`} aria-hidden="true" />{dataReady ? heroHeadline : 'Reading the latest reset & pain signals…'}</h1>
+              <h1 className="hero-title"><span className={`hero-dot tone-${dataReady ? resetTone : 'low'}`} aria-hidden="true" />{heroHeadline}</h1>
               <p className="lede">
                 AI Down Detector forecasts whether AI coding tools are likely to issue a make-good usage reset —
                 and how much pain developers are feeling — from official status and public chatter.
@@ -359,23 +373,25 @@ function App() {
             </aside>
           </div>
 
-          <div className={`briefing-strip${dataReady ? '' : ' is-loading'}`} aria-label="AI Down Detector briefing" aria-busy={!dataReady}>
-            <article>
-              <span>Latest match</span>
-              <b>{!dataReady ? 'Checking…' : latestIncident ? latestIncident.companyLabel : 'No live match yet'}</b>
-              <p>{!dataReady ? 'Reading the live incident feed…' : latestIncident ? latestIncident.title : 'The forecast is using curated historical evidence until the live feed updates.'}</p>
-            </article>
-            <article>
-              <span>Reset-relevant matches</span>
-              <b>{dataReady && snapshot ? highFitCount : '—'}</b>
-              <p>Current incidents with strong usage, quota, metering, or root-cause language.</p>
-            </article>
-            <article>
-              <span>Signal health</span>
-              <b>{!dataReady ? 'Loading' : (snapshot?.errors.length || socialSnapshot?.errors.length) ? 'Degraded' : snapshot && socialSnapshot ? 'Clean' : 'Loading'}</b>
-              <p>Official status pages and public community chatter are refreshing normally.</p>
-            </article>
-          </div>
+          <p
+            className={`briefing-line${dataReady ? '' : ' is-loading'}`}
+            aria-label="AI Down Detector briefing"
+            aria-busy={!dataReady}
+          >
+            <span>
+              Latest: {!dataReady
+                ? 'checking…'
+                : latestIncident
+                  ? `${latestIncident.companyLabel} — ${latestIncident.title}`
+                  : 'no live match yet'}
+            </span>
+            <span className="briefing-sep" aria-hidden="true">·</span>
+            <span>{dataReady && snapshot ? `${highFitCount} reset-relevant` : '— reset-relevant'}</span>
+            <span className="briefing-sep" aria-hidden="true">·</span>
+            <span>Feeds {signalHealthLabel}</span>
+            <span className="briefing-sep" aria-hidden="true">·</span>
+            <span>Updated {fmtDate(snapshot?.generated_at ?? socialSnapshot?.generated_at)}</span>
+          </p>
         </section>
 
         <section id="status" className="section">
@@ -389,8 +405,7 @@ function App() {
             </p>
           </div>
           <IncidentCards
-            stats={reportStats}
-            painByProvider={painByProvider}
+            reads={primaryReads}
             corroboration={corroboration}
             loading={statsLoading}
             onSubmitted={refreshStats}
