@@ -11,15 +11,60 @@ export const painTerms = [
 export const resetTerms = ['reset', 'resets', 'restored', 'restore', 'refund', 'refunded', 'compensate', 'compensation', 'make-good', 'apology', 'weekly', 'hourly']
 export const positiveTerms = ['fixed', 'resolved', 'shipped', 'better', 'improved', 'working']
 
+// Tutorial / how-to framing. These posts mention pain words but are help threads,
+// not live outage reports ("here's the fix for slow Codex"), so they get a
+// fractional weight rather than counting as full community pain.
+export const tutorialTerms = ['how to', 'tip', 'tips', 'try this', 'trick', 'tutorial', 'guide', 'workaround', 'pro tip', 'psa', 'the fix']
+
 // How much an official-source post that mentions a reset term may lift a topic's
 // signal. Bounded (and capped at 100 downstream) so one tweet elevates without
 // saturating every metric — the honest version of issue #1's flat "+100".
 export const OFFICIAL_RESET_BOOST = 18
 export const OFFICIAL_HEAT_BOOST = 10
 
+// Recency decay window: a post counts at full weight while fresh, then fades to a
+// small floor by the end of the week so stale chatter can't prop up live heat.
+const FRESH_HOURS = 6
+const STALE_HOURS = 24 * 7
+const STALE_FLOOR = 0.05
+const NO_TIMESTAMP_WEIGHT = 0.5 // DDG snippets have no date — treat as middling.
+const TUTORIAL_WEIGHT = 0.3
+
+const regexCache = new Map()
+function wordRegex(term) {
+  let re = regexCache.get(term)
+  if (!re) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    re = new RegExp(`\\b${escaped}\\b`, 'i')
+    regexCache.set(term, re)
+  }
+  return re
+}
+
+// Whole-word / phrase matching so "limit" doesn't fire on "unlimited" and "down"
+// doesn't fire on "download".
 export function termMatches(text, terms) {
-  const lower = text.toLowerCase()
-  return terms.filter((term) => lower.includes(term))
+  return terms.filter((term) => wordRegex(term).test(text))
+}
+
+// Age-based weight for a single item. Missing/invalid timestamps (DDG snippets)
+// fall back to a neutral middling weight.
+export function decayWeight(publishedAt, now = new Date()) {
+  if (!publishedAt) return NO_TIMESTAMP_WEIGHT
+  const ts = new Date(publishedAt).getTime()
+  if (Number.isNaN(ts)) return NO_TIMESTAMP_WEIGHT
+  const ageHours = (now.getTime() - ts) / 3_600_000
+  if (ageHours <= FRESH_HOURS) return 1
+  if (ageHours >= STALE_HOURS) return STALE_FLOOR
+  const t = (ageHours - FRESH_HOURS) / (STALE_HOURS - FRESH_HOURS)
+  return Math.max(STALE_FLOOR, Math.round((1 - t * (1 - STALE_FLOOR)) * 100) / 100)
+}
+
+// Combined per-item weight: recency × tutorial penalty.
+function itemWeight(item, now) {
+  const text = `${item.title} ${(item.matched_terms ?? []).join(' ')}`
+  const tutorial = termMatches(text, tutorialTerms).length > 0
+  return decayWeight(item.published_at, now) * (tutorial ? TUTORIAL_WEIGHT : 1)
 }
 
 export function scoreText(text) {
@@ -65,25 +110,30 @@ function officialResetItem(items) {
   )
 }
 
-export function summarizeTopic(topic, rawItems, overrides) {
+export function summarizeTopic(topic, rawItems, overrides, now = new Date()) {
   const items = dedupe(rawItems)
     .filter((item) => item.score > 0 || item.matched_terms.length)
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 40)
 
+  // `volume` stays a plain item count for display ("N public matches"); the heat
+  // math runs on recency/tutorial-weighted sums so fresh complaints dominate.
   const volume = items.length
-  const painHits = items.reduce((sum, item) => sum + termMatches(`${item.title} ${(item.matched_terms ?? []).join(' ')}`, painTerms).length, 0)
-  const resetHits = items.reduce((sum, item) => sum + termMatches(`${item.title} ${(item.matched_terms ?? []).join(' ')}`, resetTerms).length, 0)
+  const weighted = items.map((item) => ({ item, w: itemWeight(item, now) }))
+  const termCount = (item, terms) => termMatches(`${item.title} ${(item.matched_terms ?? []).join(' ')}`, terms).length
+  const weightedVolume = weighted.reduce((sum, { w }) => sum + w, 0)
+  const painHits = weighted.reduce((sum, { item, w }) => sum + w * termCount(item, painTerms), 0)
+  const resetHits = weighted.reduce((sum, { item, w }) => sum + w * termCount(item, resetTerms), 0)
   const sourceCounts = items.reduce((acc, item) => ({ ...acc, [item.source]: (acc[item.source] ?? 0) + 1 }), {})
   const topTerms = [...new Set(items.flatMap((item) => item.matched_terms ?? []))].slice(0, 10)
-  let heat = Math.min(100, Math.round(volume * 5 + painHits * 5 + resetHits * 2))
-  const painChatter = Math.min(100, Math.round(painHits * 8 + volume * 3))
-  let resetChatter = Math.min(100, Math.round(resetHits * 10 + volume * 1.5))
+  let heat = Math.min(100, Math.round(weightedVolume * 6 + painHits * 6 + resetHits * 3))
+  const painChatter = Math.min(100, Math.round(painHits * 9 + weightedVolume * 4))
+  let resetChatter = Math.min(100, Math.round(resetHits * 11 + weightedVolume * 2))
   const sentiment = volume ? Math.max(-0.95, Math.min(0.25, Math.round((resetHits * 0.03 - painHits * 0.08) * 100) / 100)) : 0
 
   const notes = [
-    'Free-only community signal: HN Algolia plus DuckDuckGo snippets for X, Reddit, and Bluesky when available.',
-    'Counts are noisy and rate-limit tolerant; use heat as a directional vibe check, not analytics-grade sentiment.',
+    'Free-only community signal: HN Algolia, Reddit + Bluesky public APIs, with DuckDuckGo snippets as fallback.',
+    'Counts are recency-weighted and rate-limit tolerant; use heat as a directional vibe check, not analytics-grade sentiment.',
   ]
 
   // Issue #1: give a verified official reset announcement a bounded, capped lift.
