@@ -204,13 +204,14 @@ export function companyPainScore(recent: Event[], socialTopic?: SocialTopic) {
   const socialHeat = socialTopic?.heat ?? 0
   const socialPain = socialTopic?.pain_chatter ?? 0
   const blended = officialPain * 0.38 + avgPain * 0.17 + socialHeat * 0.25 + socialPain * 0.20
-  // Responsive floor: when a real official incident AND loud community pain
-  // corroborate each other, historical averaging must not drag the headline
-  // (the most-viewed hero Pain Index) below what both strong signals agree on.
-  // Uncorroborated community noise alone never trips this — it can't inflate the
-  // forecast off a few loud posts.
+  // Responsive floor: when a real official incident corroborates loud community
+  // pain, the headline (the most-viewed hero Pain Index) shouldn't lag what users
+  // are loudly reporting just because historical averaging drags the blend down.
+  // The floor leans toward felt community pain (a confirmed incident makes the
+  // chatter trustworthy), but only fires when corroborated — uncorroborated noise
+  // alone can't inflate the forecast off a few loud posts.
   const corroborated = officialPain >= 50 && socialPain >= 58
-  const floor = corroborated ? Math.min(officialPain, socialPain) : 0
+  const floor = corroborated ? socialPain * 0.6 + officialPain * 0.4 : 0
   return Math.round(clamp(Math.max(blended, floor)))
 }
 
