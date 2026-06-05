@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { buildPredictions, detectConfirmedReset, relievedPain, COMMUNITY_RESET_THRESHOLD } from './model'
+import { buildPredictions, companyPainScore, detectConfirmedReset, relievedPain, COMMUNITY_RESET_THRESHOLD } from './model'
 import type { Event } from './data'
+import type { SocialTopic } from './live'
 
 const NOW = '2026-06-03T20:00:00Z'
+
+function social(partial: Partial<SocialTopic>): SocialTopic {
+  return {
+    id: 't', company: 'anthropic', product: 'Claude Code', heat: 0, sentiment: 0,
+    volume: 0, pain_chatter: 0, reset_chatter: 0, top_terms: [], sources: {}, examples: [], notes: [], ...partial,
+  }
+}
 
 function event(partial: Partial<Event>): Event {
   return {
@@ -24,6 +32,24 @@ function event(partial: Partial<Event>): Event {
     ...partial,
   }
 }
+
+describe('companyPainScore corroborated floor', () => {
+  it('does not let historical averaging drag pain below a corroborated incident + loud community', () => {
+    const recent = [
+      event({ kind: 'outage', severity: 5, usageRelated: true }),                                  // strong current incident
+      event({ kind: 'policy-change', severity: 1, product: 'ChatGPT', resolvedAt: '2026-05-20T00:00:00Z' }), // old/minor, drags the average
+      event({ kind: 'policy-change', severity: 1, product: 'ChatGPT', resolvedAt: '2026-05-20T00:00:00Z' }),
+    ]
+    expect(companyPainScore(recent, social({ heat: 94, pain_chatter: 100 }))).toBeGreaterThanOrEqual(95)
+  })
+
+  it('does not inflate pain from loud community alone when no incident corroborates', () => {
+    const loud = social({ heat: 94, pain_chatter: 100 })
+    const noIncident = [event({ kind: 'policy-change', severity: 1, product: 'ChatGPT', resolvedAt: '2026-05-20T00:00:00Z' })]
+    const withIncident = [event({ kind: 'outage', severity: 5, usageRelated: true })]
+    expect(companyPainScore(noIncident, loud)).toBeLessThan(companyPainScore(withIncident, loud))
+  })
+})
 
 describe('detectConfirmedReset', () => {
   it('returns null with no reset and no community signal', () => {
