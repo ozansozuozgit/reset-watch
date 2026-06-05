@@ -1,7 +1,7 @@
 # Social-heat accuracy — design
 
 **Date:** 2026-06-05
-**Status:** Approved (design); implementation pending
+**Status:** Phases 1–3 implemented; Phase 4 deferred (see Rollout)
 **Related:** PR #4 (UI-level `communityHeatRead` cross-feed honesty)
 
 ## Problem
@@ -129,3 +129,14 @@ removes most stale-signal error, so this is a refinement, not a blocker.
 
 Phases land independently and safely: **1 → 2 → 3 → (4 stretch)**. Each ships
 with its tests; the free-only guarantee holds throughout.
+
+**Implementation status (2026-06-05):**
+- Phases 1–3 shipped with tests (`social-score`, `retry`, `incident-model`).
+- **Phase 1 caveat:** the real Reddit/Bluesky APIs are blocked from the local
+  sandbox (403), so the primary path is exercised only via the DDG fallback
+  locally; it needs a CI run (different IP) to confirm the real APIs return data.
+  Behaviour is no worse than before in the meantime.
+- **Phase 4 deferred:** baseline-relative heat needs Supabase `signal_snapshots`
+  history reads that can't be verified from the sandbox and need real
+  CI-generated history. Recency decay (Phase 2) already removes most stale-signal
+  error, so this is a follow-up, not a blocker.
